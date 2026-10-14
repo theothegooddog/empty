@@ -26,6 +26,22 @@ def dv(c):
     return ord(c) - 48
 
 
+class LiveLog(list):
+    """A step log that prints each line the moment it is added."""
+
+    def append(self, line):
+        super().append(line)
+        print(line, flush=True)
+
+    def extend(self, lines):
+        for line in lines:
+            self.append(line)
+
+    def __iadd__(self, lines):
+        self.extend(lines)
+        return self
+
+
 def strip(a):
     """Remove leading zeros from a digit string."""
     return a.lstrip("0") or "0"
@@ -105,19 +121,17 @@ def mul_digit(a, d):
 def mul_abs(a, b, log=None):
     """Long multiplication: one partial product per digit of b, then add."""
     a, b = strip(a), strip(b)
-    partials = []
+    w = len(a) + len(b) + 2  # the product has at most len(a) + len(b) digits
+    if log is not None:
+        log += [a.rjust(w), ("x " + b).rjust(w), "-" * w]
     total = "0"
     for i, c in enumerate(reversed(b)):
         p = mul_digit(a, dv(c))
-        partials.append((p, i, c))
         total = add_abs(total, p + "0" * i)
-    if log is not None:
-        w = max(len(total), len(a), len(b) + 2) + 2
-        log += [a.rjust(w), ("x " + b).rjust(w), "-" * w]
-        for p, i, c in partials:
-            log.append(p.rjust(w - i) + " " * i + f"   {a} x {c}")
-        if len(partials) > 1:
-            log += ["-" * w, total.rjust(w) + "   (sum of the rows above)"]
+        if log is not None:
+            log.append(p.rjust(w - i) + " " * i + f"   {a} x {c}   (row {i + 1} of {len(b)})")
+    if log is not None and len(b) > 1:
+        log += ["-" * w, total.rjust(w) + "   (sum of the rows above)"]
     return total
 
 
@@ -129,7 +143,7 @@ def divmod_abs(a, b, log=None):
     if log is not None:
         log.append(f"long division: {a} / {b}")
     q, rem = [], "0"
-    for c in a:
+    for k, c in enumerate(a, 1):
         cur = strip(rem + c)
         d, rem = 0, cur
         while cmp_abs(rem, b) >= 0:  # how many times does b fit?
@@ -140,9 +154,9 @@ def divmod_abs(a, b, log=None):
         if log is not None and (d or started):
             if d:
                 log.append(f"  bring down {c} -> {cur}: {b} fits {d}x, "
-                           f"{cur} - {mul_digit(b, d)} = {rem}  -> write {d}")
+                           f"{cur} - {mul_digit(b, d)} = {rem}  -> write {d}   (digit {k} of {len(a)})")
             else:
-                log.append(f"  bring down {c} -> {cur}: smaller than {b}  -> write 0")
+                log.append(f"  bring down {c} -> {cur}: smaller than {b}  -> write 0   (digit {k} of {len(a)})")
     quotient = strip("".join(q))
     if log is not None:
         log.append(f"  quotient {quotient}, remainder {rem}")
@@ -253,17 +267,18 @@ def power(x, y, precision=20, log=None):
     """x ^ y for a whole-number y, using exponentiation by squaring."""
     if y[2]:
         raise ValueError("exponent must be a whole number")
-    e, result, base = y[1], ONE, x
+    e, result, base, step = y[1], ONE, x, 0
     if log is not None:
         log.append(f"exponentiation by squaring (exponent {e} halved each step)")
     while e != "0":
         e, bit = divmod_abs(e, "2")
+        step += 1
         if bit == "1":
             result = mul(result, base)
         if e != "0":
             base = mul(base, base)
         if log is not None:
-            log.append(f"  bit {bit}: " + ("result = result x base; " if bit == "1" else "")
+            log.append(f"  step {step}, bit {bit}: " + ("result = result x base; " if bit == "1" else "")
                        + ("base = base x base" if e != "0" else "done"))
     if y[0]:
         result = div(ONE, result, precision, log)
@@ -290,9 +305,10 @@ def tokenize(text):
 
 
 class Calculator:
-    def __init__(self, precision=20, show_steps=False):
+    def __init__(self, precision=20, show_steps=False, live=False):
         self.precision = precision
         self.show_steps = show_steps
+        self.live = live  # print each step as soon as it's done
         self.steps = []
 
     def evaluate(self, text):
@@ -361,7 +377,10 @@ class Calculator:
         raise SyntaxError(f"unexpected {val!r}")
 
     def _apply(self, op, x, y):
-        log = [] if self.show_steps else None
+        log = None
+        if self.show_steps:
+            log = LiveLog() if self.live else []
+            log.append(f"=== {fmt(x)} {op} {fmt(y)} ===")
         if op == "+":
             r = add(x, y, log)
         elif op == "-":
@@ -377,9 +396,8 @@ class Calculator:
         else:
             r = power(x, y, self.precision, log)
         if log is not None:
-            self.steps.append(f"=== {fmt(x)} {op} {fmt(y)} ===")
+            log += [f"=> {fmt(r)}", ""]
             self.steps += log
-            self.steps += [f"=> {fmt(r)}", ""]
         return r
 
 
@@ -393,7 +411,7 @@ def run_one(calc, text):
     except (SyntaxError, ValueError, ZeroDivisionError) as e:
         print(f"error: {e}")
         return
-    if calc.show_steps and calc.steps:
+    if calc.show_steps and not calc.live and calc.steps:
         print("\n".join(calc.steps))
     print(result)
 
@@ -430,8 +448,9 @@ def main():
     ap.add_argument("expression", nargs="*", help="expression to evaluate (omit for interactive mode)")
     ap.add_argument("-s", "--steps", action="store_true", help="show the working")
     ap.add_argument("-p", "--precision", type=int, default=20, help="decimal places for / (default 20)")
-    args = ap.parse_args()
-    calc = Calculator(precision=args.precision, show_steps=args.steps)
+    args, extra = ap.parse_known_args()  # lets "-5*3" through as an expression
+    args.expression += extra
+    calc = Calculator(precision=args.precision, show_steps=args.steps, live=True)
     if args.expression:
         run_one(calc, " ".join(args.expression))
     else:
