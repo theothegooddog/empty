@@ -56,6 +56,7 @@
 	.status-done { color: var(--accent); font-weight: 600; }
 	.status-todo { color: var(--muted); }
 	td.actions { white-space: nowrap; }
+	img.thumb { display: block; max-width: 320px; max-height: 70px; border: 1px solid var(--line); border-radius: 4px; background: #fff; }
 	.empty { color: var(--muted); }
 
 	@page { margin: 10mm; }
@@ -71,7 +72,7 @@
 <body>
 <header>
 	<h1>Homework Break</h1>
-	<nav><a href="/">Scan</a> <a class="here" href="/print">Answers &amp; Print</a></nav>
+	<nav><a href="/">Add homework</a> <a class="here" href="/print">Answers &amp; Print</a></nav>
 </header>
 <main>
 	<section class="card no-print">
@@ -169,10 +170,8 @@ function render() {
 		img.alt = "Your homework";
 		photo.append(img);
 
-		// Size answers like the writing on the sheet, using the usual height of one line.
-		const heights = qs.map(q => q.box[3]).sort((a, b) => a - b);
-		const lineHeight = heights[Math.floor((heights.length - 1) / 2)];
-		const fontSize = Math.min(3, Math.max(1, lineHeight / scan.width * 100 * 1.05));
+		// Answer text size, as a percentage of the sheet width (about the size of worksheet print).
+		const fontSize = 2;
 		for (const q of qs) {
 			if (!hasWork(q)) continue;
 			photo.append(answerBox(q, scan, photo, fontSize));
@@ -219,7 +218,8 @@ function answerBox(q, scan, photo, fontSize) {
 	const div = document.createElement("div");
 	div.className = "answer";
 	const [bx, by, bw, bh] = q.box;
-	const pos = q.answerPos || [bx, by + bh + 4];
+	// Under the question's box, or near the top if the box is (nearly) the whole page.
+	const pos = q.answerPos || (by + bh > scan.height * 0.9 ? [scan.width * 0.05, scan.height * 0.05] : [bx, by + bh + 4]);
 	div.style.left = (pos[0] / scan.width * 100) + "%";
 	div.style.top = (pos[1] / scan.height * 100) + "%";
 	div.style.fontSize = fontSize + "cqw";
@@ -276,12 +276,21 @@ function renderManage() {
 	table.append(head);
 	data.questions.forEach((q, i) => {
 		const tr = document.createElement("tr");
-		const cells = [String(i + 1), q.text, (q.answer || "").slice(0, 80) + ((q.answer || "").length > 80 ? "..." : "")];
-		for (const c of cells) {
-			const td = document.createElement("td");
-			td.textContent = c;
-			tr.append(td);
+		const num = document.createElement("td");
+		num.textContent = String(i + 1);
+		const question = document.createElement("td");
+		if (q.image) {
+			const img = document.createElement("img");
+			img.src = "/scans/" + encodeURIComponent(q.image);
+			img.alt = q.text;
+			img.className = "thumb";
+			question.append(img);
+		} else {
+			question.textContent = q.text;
 		}
+		const ans = document.createElement("td");
+		ans.textContent = (q.answer || "").slice(0, 80) + ((q.answer || "").length > 80 ? "..." : "");
+		tr.append(num, question, ans);
 		const st = document.createElement("td");
 		st.textContent = q.done ? "Done" : "Not yet";
 		st.className = q.done ? "status-done" : "status-todo";

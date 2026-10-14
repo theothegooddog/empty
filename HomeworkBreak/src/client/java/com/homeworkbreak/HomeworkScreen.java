@@ -43,6 +43,11 @@ public class HomeworkScreen extends Screen {
 
 	private int canvasX0, canvasY0, canvasX1, canvasY1;
 
+	/** The photo of this question, or null for a typed question. */
+	private QuestionPicture picture;
+	private int pictureX, pictureY, pictureW, pictureH;
+	private boolean zoomed;
+
 	public HomeworkScreen(HomeworkStore.Question question, int number, int total, int minSeconds) {
 		super(Component.literal("Homework Break!"));
 		this.question = question;
@@ -62,11 +67,28 @@ public class HomeworkScreen extends Screen {
 		int rightX = MARGIN + colWidth + MARGIN;
 		int bottomRowY = this.height - 26;
 
-		MultiLineTextWidget questionText = new MultiLineTextWidget(leftX, TOP, Component.literal(question.text), this.font)
-				.setMaxWidth(colWidth);
-		addRenderableOnly(questionText);
+		if (picture == null && question.image != null) {
+			picture = QuestionPicture.load(HomeworkConfig.SCANS_DIR.resolve(question.image));
+		}
 
-		int answerTop = TOP + questionText.getHeight() + 16;
+		int questionBottom;
+		if (picture != null) {
+			// Fit the photo in the left column, leaving room for the answer box below it.
+			int maxHeight = Math.max(30, (int) ((bottomRowY - 16 - TOP) * 0.55));
+			double fit = Math.min((double) colWidth / picture.width(), (double) maxHeight / picture.height());
+			pictureW = Math.max(1, (int) (picture.width() * fit));
+			pictureH = Math.max(1, (int) (picture.height() * fit));
+			pictureX = leftX;
+			pictureY = TOP;
+			questionBottom = TOP + pictureH + 10;
+		} else {
+			MultiLineTextWidget questionText = new MultiLineTextWidget(leftX, TOP, Component.literal(question.text), this.font)
+					.setMaxWidth(colWidth);
+			addRenderableOnly(questionText);
+			questionBottom = TOP + questionText.getHeight();
+		}
+
+		int answerTop = questionBottom + 16;
 		// Leave room under the box for its character counter.
 		int answerHeight = Math.max(30, bottomRowY - 16 - answerTop);
 		answerBox = MultiLineEditBox.builder()
@@ -146,6 +168,10 @@ public class HomeworkScreen extends Screen {
 	public void removed() {
 		// Keep what you've done so far, even if something else interrupts the break.
 		saveWork();
+		if (picture != null) {
+			picture.close();
+			picture = null;
+		}
 		super.removed();
 	}
 
@@ -164,6 +190,15 @@ public class HomeworkScreen extends Screen {
 
 	@Override
 	public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
+		if (zoomed) {
+			zoomed = false;
+			return true;
+		}
+		if (picture != null && event.x() >= pictureX && event.x() < pictureX + pictureW
+				&& event.y() >= pictureY && event.y() < pictureY + pictureH) {
+			zoomed = true;
+			return true;
+		}
 		if (event.button() == 0 && insideCanvas(event.x(), event.y())) {
 			currentStroke = new ArrayList<>();
 			strokes.add(currentStroke);
@@ -208,7 +243,23 @@ public class HomeworkScreen extends Screen {
 
 		g.text(this.font, "Your answer:", answerBox.getX(), answerBox.getY() - 10, WHITE);
 
+		if (picture != null) {
+			g.fill(pictureX - 1, pictureY - 1, pictureX + pictureW + 1, pictureY + pictureH + 1, PAPER_EDGE);
+			picture.draw(g, pictureX, pictureY, pictureW, pictureH);
+			g.text(this.font, "(click the picture to make it bigger)", pictureX, pictureY + pictureH + 2, GRAY);
+		}
+
 		super.extractRenderState(g, mouseX, mouseY, partialTick);
+
+		if (zoomed && picture != null) {
+			g.nextStratum();
+			g.fill(0, 0, this.width, this.height, 0xF0000000);
+			double fit = Math.min((double) (this.width - 20) / picture.width(), (double) (this.height - 30) / picture.height());
+			int w = (int) (picture.width() * fit);
+			int h = (int) (picture.height() * fit);
+			picture.draw(g, (this.width - w) / 2, 8, w, h);
+			g.centeredText(this.font, "Click anywhere to go back", this.width / 2, this.height - 15, WHITE);
+		}
 	}
 
 	private void drawStrokes(GuiGraphicsExtractor g) {

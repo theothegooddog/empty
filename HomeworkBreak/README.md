@@ -9,11 +9,11 @@ sheet with all your answers written on it.
 
 1. Install [Fabric Loader](https://fabricmc.net/use/installer/) for Minecraft **26.2**.
 2. Put these in your `.minecraft/mods` folder:
-   - `dist/homeworkbreak-2.0.0.jar` from this folder
+   - `dist/homeworkbreak-2.1.0.jar` from this folder
    - [Fabric API](https://modrinth.com/mod/fabric-api) for 26.2
 3. Launch Minecraft with the Fabric profile.
 
-## 1. Scan your homework with the webcam
+## 1. Take a picture of your homework
 
 Press **Esc** in game and click the **Homework** button in the top-left corner
 (or type `/homework` in chat). Your browser opens the homework page.
@@ -22,20 +22,20 @@ Press **Esc** in game and click the **Homework** button in the top-left corner
    **Take picture**. (Or click **Upload a photo** to use a picture from your phone.)
 2. Click **Crop to the paper** and drag a box around the sheet, so the printout
    is just your homework.
-3. The page reads the questions off the photo. Check them: fix any typos, untick
-   things that aren't questions, and use **Join with above** if a question got
-   split in two. You can also type extra questions in.
+3. **Drag a box around each question** on the photo. Each box becomes one
+   homework break, and the game shows that part of the photo. If you don't draw
+   any boxes, the whole page becomes one question. You can also type questions in.
 4. Click **Send to Minecraft**.
 
-The text reader runs in your browser and downloads its files from the internet
-the first time, so you need to be online for scanning. The page only works on
-your own computer while Minecraft is running.
+The page only works on your own computer while Minecraft is running. It doesn't
+need the internet.
 
 ## 2. Answer questions while you play
 
 When a homework break pops up:
 
-- **Left side:** the question, plus a box to type your answer.
+- **Left side:** the picture of the question (click it to make it bigger),
+  plus a box to type your answer.
 - **Right side:** a drawing area for working things out with your mouse.
   **Undo** removes the last line and **Clear drawing** wipes it.
 - The **Done** button unlocks after a minute, once you've typed an answer.
@@ -46,7 +46,7 @@ Want to do one right now? Type `/homework now`.
 ## 3. Print your answers
 
 Type `/homework print` (or click **Answers & Print** on the homework page).
-Your scanned sheet shows your typed answers and drawings under each question.
+The photo of your sheet shows your typed answers and drawings under each question.
 Drag any answer to move it if it's in the wrong spot, then click **Print**.
 
 The **All questions** list at the bottom lets you delete questions or make a

@@ -29,8 +29,10 @@ public final class HomeworkStore {
 	public static final class Question {
 		public String id;
 		public String text;
-		/** The scan this question was read from, or null if it was typed in. */
+		/** The photo of the whole sheet this question is on, or null if it was typed in. */
 		public String scanId;
+		/** Picture of just this question (a PNG in scans/), shown in the game. Null for typed questions. */
+		public String image;
 		/** Where the question is on the scan photo: x, y, width, height in photo pixels. */
 		public double[] box;
 		/** Where the answer goes on the scan photo (x, y in photo pixels); null means just under the question. */
@@ -141,18 +143,27 @@ public final class HomeworkStore {
 	}
 
 	public static synchronized Question addQuestion(String text, String scanId, double[] box) {
+		return addQuestion(text, scanId, box, null);
+	}
+
+	public static synchronized Question addQuestion(String text, String scanId, double[] box, String image) {
 		Question q = new Question();
 		q.id = "q" + data.nextId++;
 		q.text = text;
 		q.scanId = scanId;
 		q.box = box;
+		q.image = image;
 		data.questions.add(q);
 		save();
 		return q;
 	}
 
 	public static synchronized boolean deleteQuestion(String id) {
-		boolean removed = data.questions.removeIf(q -> q.id.equals(id));
+		Question q = find(id);
+		if (q != null && q.image != null) {
+			deleteFile(q.image);
+		}
+		boolean removed = data.questions.removeIf(x -> x.id.equals(id));
 		save();
 		return removed;
 	}
@@ -181,28 +192,43 @@ public final class HomeworkStore {
 		}
 	}
 
-	public static synchronized Scan findScanFile(String file) {
+	/** True if the file is a sheet photo or question picture this store knows about. */
+	public static synchronized boolean isKnownFile(String file) {
 		for (Scan s : data.scans) {
 			if (s.file.equals(file)) {
-				return s;
+				return true;
 			}
 		}
-		return null;
+		for (Question q : data.questions) {
+			if (file.equals(q.image)) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	public static synchronized void clearAll() {
 		Set<String> imported = data.importedLines;
 		for (Scan s : data.scans) {
-			try {
-				Files.deleteIfExists(HomeworkConfig.SCANS_DIR.resolve(s.file));
-			} catch (IOException e) {
-				HomeworkBreakClient.LOGGER.warn("Could not delete {}", s.file, e);
+			deleteFile(s.file);
+		}
+		for (Question q : data.questions) {
+			if (q.image != null) {
+				deleteFile(q.image);
 			}
 		}
 		data = new Data();
 		// Keep remembering lines already taken from questions.txt so they don't all come back.
 		data.importedLines = imported;
 		save();
+	}
+
+	private static void deleteFile(String file) {
+		try {
+			Files.deleteIfExists(HomeworkConfig.SCANS_DIR.resolve(file));
+		} catch (IOException e) {
+			HomeworkBreakClient.LOGGER.warn("Could not delete {}", file, e);
+		}
 	}
 
 	private static Question find(String id) {

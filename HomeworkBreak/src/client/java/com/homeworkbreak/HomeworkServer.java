@@ -123,21 +123,18 @@ public final class HomeworkServer {
 	private static void addScan(JsonObject body) throws IOException {
 		String scanId = null;
 		if (body.has("image") && !body.get("image").isJsonNull()) {
-			String dataUrl = body.get("image").getAsString();
-			int comma = dataUrl.indexOf(',');
-			if (!dataUrl.startsWith("data:image/jpeg;base64,") || comma < 0) {
-				throw new IllegalArgumentException("Photo must be a JPEG");
-			}
-			byte[] jpeg = Base64.getDecoder().decode(dataUrl.substring(comma + 1));
-			String file = UUID.randomUUID() + ".jpg";
-			Files.write(HomeworkConfig.SCANS_DIR.resolve(file), jpeg);
+			String file = saveImage(body.get("image").getAsString(), "jpeg", ".jpg");
 			scanId = HomeworkStore.addScan(file, body.get("width").getAsInt(), body.get("height").getAsInt()).id;
 		}
 		JsonArray questions = body.getAsJsonArray("questions");
 		for (JsonElement el : questions) {
 			JsonObject q = el.getAsJsonObject();
 			String text = q.get("text").getAsString().strip();
-			if (text.isEmpty()) {
+			String picture = null;
+			if (q.has("image") && !q.get("image").isJsonNull()) {
+				picture = saveImage(q.get("image").getAsString(), "png", ".png");
+			}
+			if (text.isEmpty() && picture == null) {
 				continue;
 			}
 			double[] box = null;
@@ -145,8 +142,20 @@ public final class HomeworkServer {
 				JsonArray b = q.getAsJsonArray("box");
 				box = new double[] {b.get(0).getAsDouble(), b.get(1).getAsDouble(), b.get(2).getAsDouble(), b.get(3).getAsDouble()};
 			}
-			HomeworkStore.addQuestion(text, box == null ? null : scanId, box);
+			HomeworkStore.addQuestion(text, box == null ? null : scanId, box, picture);
 		}
+	}
+
+	/** Saves a data: URL image into the scans folder and returns its new file name. */
+	private static String saveImage(String dataUrl, String type, String extension) throws IOException {
+		String prefix = "data:image/" + type + ";base64,";
+		if (!dataUrl.startsWith(prefix)) {
+			throw new IllegalArgumentException("Picture must be a " + type.toUpperCase());
+		}
+		byte[] bytes = Base64.getDecoder().decode(dataUrl.substring(prefix.length()));
+		String file = UUID.randomUUID() + extension;
+		Files.write(HomeworkConfig.SCANS_DIR.resolve(file), bytes);
+		return file;
 	}
 
 	private static void updateQuestion(JsonObject body) {
@@ -162,11 +171,12 @@ public final class HomeworkServer {
 
 	private static void sendScanImage(HttpExchange ex, String file) throws IOException {
 		// Only serve files the store knows about, so the path can't point anywhere else.
-		if (HomeworkStore.findScanFile(file) == null) {
+		if (!HomeworkStore.isKnownFile(file)) {
 			send(ex, 404, "text/plain", "Not found".getBytes(StandardCharsets.UTF_8));
 			return;
 		}
-		send(ex, 200, "image/jpeg", Files.readAllBytes(HomeworkConfig.SCANS_DIR.resolve(file)));
+		String type = file.endsWith(".png") ? "image/png" : "image/jpeg";
+		send(ex, 200, type, Files.readAllBytes(HomeworkConfig.SCANS_DIR.resolve(file)));
 	}
 
 	private static void sendPage(HttpExchange ex, String name) throws IOException {
