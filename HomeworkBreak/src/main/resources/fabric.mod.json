@@ -1,0 +1,20 @@
+{
+	"schemaVersion": 1,
+	"id": "homeworkbreak",
+	"version": "${version}",
+	"name": "Homework Break",
+	"description": "Every so often, pauses the game and makes you do one of your homework questions on paper before you can keep playing.",
+	"authors": ["theothegooddog"],
+	"license": "CC0-1.0",
+	"icon": "assets/homeworkbreak/icon.png",
+	"environment": "client",
+	"entrypoints": {
+		"client": ["com.homeworkbreak.HomeworkBreakClient"]
+	},
+	"depends": {
+		"fabricloader": ">=0.19.5",
+		"minecraft": "~26.2",
+		"java": ">=25",
+		"fabric-api": "*"
+	}
+}
