@@ -64,6 +64,15 @@ struct Settings: Codable, Hashable {
 
     /// Optional 4-digit code a parent sets to lock settings, history edits and new rewards.
     var parentPIN: String? = nil
+
+    /// Where school is. When set and `requireAtSchool` is on, check-in only works near this spot.
+    var schoolLatitude: Double? = nil
+    var schoolLongitude: Double? = nil
+    /// How close (in meters) counts as "at school".
+    var schoolRadius: Double = 250
+    var requireAtSchool = true
+
+    var hasSchoolLocation: Bool { schoolLatitude != nil && schoolLongitude != nil }
 }
 
 enum RewardCategory: String, Codable, CaseIterable, Identifiable {
@@ -124,4 +133,40 @@ struct AppData: Codable, Hashable {
     var daysOff: Set<Day> = []
     var rewards: [Reward] = Reward.defaults
     var redemptions: [Redemption] = []
+    /// False until the first-launch setup (which asks for permissions) is finished.
+    var hasOnboarded = false
+}
+
+// Decoding with defaults, so data saved by an older version of the app still loads after new fields are added.
+
+extension Settings {
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        let d = Settings()
+        schoolStartHour = try c.decodeIfPresent(Int.self, forKey: .schoolStartHour) ?? d.schoolStartHour
+        schoolStartMinute = try c.decodeIfPresent(Int.self, forKey: .schoolStartMinute) ?? d.schoolStartMinute
+        earlyMinutes = try c.decodeIfPresent(Int.self, forKey: .earlyMinutes) ?? d.earlyMinutes
+        schoolDays = try c.decodeIfPresent(Set<Int>.self, forKey: .schoolDays) ?? d.schoolDays
+        reminderEnabled = try c.decodeIfPresent(Bool.self, forKey: .reminderEnabled) ?? d.reminderEnabled
+        reminderHour = try c.decodeIfPresent(Int.self, forKey: .reminderHour) ?? d.reminderHour
+        reminderMinute = try c.decodeIfPresent(Int.self, forKey: .reminderMinute) ?? d.reminderMinute
+        parentPIN = try c.decodeIfPresent(String.self, forKey: .parentPIN)
+        schoolLatitude = try c.decodeIfPresent(Double.self, forKey: .schoolLatitude)
+        schoolLongitude = try c.decodeIfPresent(Double.self, forKey: .schoolLongitude)
+        schoolRadius = try c.decodeIfPresent(Double.self, forKey: .schoolRadius) ?? d.schoolRadius
+        requireAtSchool = try c.decodeIfPresent(Bool.self, forKey: .requireAtSchool) ?? d.requireAtSchool
+    }
+}
+
+extension AppData {
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        settings = try c.decodeIfPresent(Settings.self, forKey: .settings) ?? Settings()
+        checkIns = try c.decodeIfPresent([CheckIn].self, forKey: .checkIns) ?? []
+        daysOff = try c.decodeIfPresent(Set<Day>.self, forKey: .daysOff) ?? []
+        rewards = try c.decodeIfPresent([Reward].self, forKey: .rewards) ?? Reward.defaults
+        redemptions = try c.decodeIfPresent([Redemption].self, forKey: .redemptions) ?? []
+        // Anyone with saved data has already been using the app.
+        hasOnboarded = try c.decodeIfPresent(Bool.self, forKey: .hasOnboarded) ?? true
+    }
 }

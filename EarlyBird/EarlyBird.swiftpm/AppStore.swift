@@ -1,3 +1,4 @@
+import CoreLocation
 import Foundation
 import UserNotifications
 
@@ -49,6 +50,27 @@ final class AppStore: ObservableObject {
         guard !data.checkIns.contains(where: { $0.day == day }) else { return nil }
         data.checkIns.append(CheckIn(day: day, arrival: now))
         return summary.results.last(where: { $0.day == day })
+    }
+
+    /// Checks the phone is near school before a check-in. Returns nil when it's fine to check in.
+    func atSchoolProblem(using permissions: Permissions) async -> CheckInProblem? {
+        let s = data.settings
+        guard s.requireAtSchool, let lat = s.schoolLatitude, let lon = s.schoolLongitude else { return nil }
+        guard permissions.locationAllowed else { return .needsLocationPermission }
+        guard let here = await permissions.currentLocation() else { return .locationUnavailable }
+        let distance = here.distance(from: CLLocation(latitude: lat, longitude: lon))
+        // Give a little slack for GPS accuracy.
+        return distance <= s.schoolRadius + here.horizontalAccuracy ? nil : .notAtSchool(meters: Int(distance))
+    }
+
+    func setSchoolLocation(_ location: CLLocation) {
+        data.settings.schoolLatitude = location.coordinate.latitude
+        data.settings.schoolLongitude = location.coordinate.longitude
+    }
+
+    func clearSchoolLocation() {
+        data.settings.schoolLatitude = nil
+        data.settings.schoolLongitude = nil
     }
 
     /// Adds or replaces the check-in for a past day (for a parent fixing a forgotten tap).
@@ -107,6 +129,32 @@ final class AppStore: ObservableObject {
             try raw.write(to: fileURL, options: .atomic)
         } catch {
             print("EarlyBird: could not save data: \(error)")
+        }
+    }
+}
+
+enum CheckInProblem: Equatable {
+    case needsLocationPermission
+    case locationUnavailable
+    case notAtSchool(meters: Int)
+
+    var title: String {
+        switch self {
+        case .needsLocationPermission: return "Location is off"
+        case .locationUnavailable: return "Can't find you"
+        case .notAtSchool: return "Not at school yet"
+        }
+    }
+
+    var message: String {
+        switch self {
+        case .needsLocationPermission:
+            return "Early Bird needs your location to check that you're at school. Turn it on in Settings."
+        case .locationUnavailable:
+            return "Your location couldn't be found. Step outside or wait a moment, then try again."
+        case .notAtSchool(let meters):
+            let distance = meters >= 1000 ? String(format: "%.1f km", Double(meters) / 1000) : "\(meters) m"
+            return "You're about \(distance) from school. Tap again once you get there."
         }
     }
 }

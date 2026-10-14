@@ -1,3 +1,5 @@
+# Optional: a regular Xcode project that also runs the unit tests.
+# The easiest way to run the app is to open EarlyBird.swiftpm instead.
 # Generate EarlyBird.xcodeproj with XcodeGen: `brew install xcodegen && xcodegen`
 name: EarlyBird
 options:
@@ -13,12 +15,15 @@ targets:
   EarlyBird:
     type: application
     platform: iOS
-    sources: [Sources]
+    sources:
+      - path: EarlyBird.swiftpm
+        excludes: [Package.swift]
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.example.EarlyBird
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_KEY_CFBundleDisplayName: Early Bird
+        INFOPLIST_KEY_NSLocationWhenInUseUsageDescription: Early Bird checks that you're at school when you check in, so your streak is the real deal.
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
         INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: YES
         INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait

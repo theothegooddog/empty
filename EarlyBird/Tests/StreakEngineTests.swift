@@ -104,4 +104,15 @@ final class StreakEngineTests: XCTestCase {
         XCTAssertEqual(PointsRules.nextMilestone(after: 5), 10)
         XCTAssertEqual(PointsRules.earlyPoints(streak: 50), 30)
     }
+
+    func testOlderSavedDataStillLoads() throws {
+        // Saved before school location and onboarding existed.
+        let json = #"{"settings":{"schoolStartHour":9,"schoolStartMinute":0,"earlyMinutes":5,"schoolDays":[2,3,4,5,6],"reminderEnabled":false,"reminderHour":7,"reminderMinute":0},"checkIns":[],"daysOff":[],"rewards":[],"redemptions":[]}"#
+        let data = try JSONDecoder().decode(AppData.self, from: Data(json.utf8))
+        XCTAssertEqual(data.settings.schoolStartHour, 9)
+        XCTAssertFalse(data.settings.hasSchoolLocation)
+        XCTAssertEqual(data.settings.schoolRadius, 250)
+        XCTAssertTrue(data.hasOnboarded)
+        XCTAssertFalse(AppData().hasOnboarded)
+    }
 }

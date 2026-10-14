@@ -2,14 +2,17 @@ import SwiftUI
 
 struct TodayView: View {
     @EnvironmentObject private var store: AppStore
+    @EnvironmentObject private var permissions: Permissions
     @State private var celebration: DayResult?
+    @State private var problem: CheckInProblem?
+    @State private var checking = false
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 20) {
                     StreakHero(current: store.summary.current, best: store.summary.best)
-                    TodayCard(onCheckIn: checkIn)
+                    TodayCard(checking: checking, onCheckIn: { Task { await checkIn() } })
                     MilestoneCard(streak: store.summary.current)
                     WeekStrip(results: Array(store.summary.results.suffix(7)))
                 }
@@ -25,11 +28,37 @@ struct TodayView: View {
             .sheet(item: $celebration) { result in
                 CelebrationView(result: result)
             }
+            .alert(
+                problem?.title ?? "",
+                isPresented: Binding(get: { problem != nil }, set: { if !$0 { problem = nil } }),
+                presenting: problem
+            ) { problem in
+                if problem == .needsLocationPermission {
+                    if permissions.locationDenied {
+                        Button("Open Settings") { permissions.openSystemSettings() }
+                    } else {
+                        Button("Allow location") { permissions.requestLocation() }
+                    }
+                    Button("Cancel", role: .cancel) {}
+                } else {
+                    Button("OK", role: .cancel) {}
+                }
+            } message: { problem in
+                Text(problem.message)
+            }
         }
     }
 
-    private func checkIn() {
+    private func checkIn() async {
         let generator = UINotificationFeedbackGenerator()
+        checking = true
+        let issue = await store.atSchoolProblem(using: permissions)
+        checking = false
+        if let issue {
+            generator.notificationOccurred(.error)
+            problem = issue
+            return
+        }
         if let result = store.checkInNow() {
             generator.notificationOccurred(result.status == .early ? .success : .warning)
             celebration = result
@@ -82,6 +111,7 @@ private struct StreakHero: View {
 
 private struct TodayCard: View {
     @EnvironmentObject private var store: AppStore
+    var checking: Bool
     var onCheckIn: () -> Void
 
     var body: some View {
@@ -119,13 +149,20 @@ private struct TodayCard: View {
                     detail: "That's \(settings.earlyMinutes) min before the bell. Tap the button when you arrive."
                 )
                 Button(action: onCheckIn) {
-                    Label("I'm at school!", systemImage: "figure.walk.arrival")
-                        .font(.title3.bold())
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 8)
+                    Group {
+                        if checking {
+                            Label("Checking you're at school...", systemImage: "location.fill")
+                        } else {
+                            Label("I'm at school!", systemImage: "figure.walk.arrival")
+                        }
+                    }
+                    .font(.title3.bold())
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 8)
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)
+                .disabled(checking)
             }
         }
         .padding()
