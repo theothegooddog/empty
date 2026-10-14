@@ -1,0 +1,484 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Scan Homework</title>
+<style>
+	:root {
+		--bg: #f5f3ee; --card: #ffffff; --text: #1d1d1f; --muted: #6b6b70; --line: #dedad2;
+		--accent: #3a7d2c; --accent-text: #ffffff; --warn: #b3261e; --box: #2f6fdb;
+	}
+	@media (prefers-color-scheme: dark) {
+		:root {
+			--bg: #17171a; --card: #222226; --text: #ededf0; --muted: #a0a0a8; --line: #3a3a40;
+			--accent: #5fae4c; --accent-text: #0d1a0a; --warn: #ff8a80; --box: #7aa7ff;
+		}
+	}
+	* { box-sizing: border-box; }
+	body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+	header { display: flex; align-items: center; gap: 16px; padding: 14px 20px; border-bottom: 1px solid var(--line); background: var(--card); }
+	header h1 { font-size: 20px; margin: 0; flex: 1; }
+	nav a { color: var(--text); text-decoration: none; padding: 6px 12px; border-radius: 8px; }
+	nav a.here { background: var(--accent); color: var(--accent-text); }
+	main { max-width: 1100px; margin: 0 auto; padding: 20px 16px 60px; display: grid; gap: 20px; }
+	.card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 18px; }
+	.card h2 { margin: 0 0 4px; font-size: 18px; }
+	.hint { color: var(--muted); margin: 0 0 14px; font-size: 14px; }
+	.row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+	button, .filebtn {
+		font: inherit; padding: 9px 16px; border-radius: 9px; border: 1px solid var(--line);
+		background: var(--card); color: var(--text); cursor: pointer;
+	}
+	button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); font-weight: 600; }
+	button:disabled { opacity: .5; cursor: default; }
+	select { font: inherit; padding: 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--card); color: var(--text); max-width: 100%; }
+	.filebtn input { display: none; }
+	.stage { position: relative; display: inline-block; margin-top: 14px; max-width: 100%; vertical-align: top; }
+	video, #photo { display: block; max-width: 100%; max-height: 70vh; border-radius: 8px; background: #000; }
+	#overlay { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+	#status { margin-top: 12px; font-weight: 600; }
+	progress { width: 100%; height: 10px; }
+	.q { display: grid; grid-template-columns: auto auto 1fr auto; gap: 10px; align-items: start; padding: 10px 0; border-top: 1px solid var(--line); }
+	.q:first-child { border-top: 0; }
+	.q .num { font-weight: 700; color: var(--box); min-width: 2ch; padding-top: 6px; }
+	.q input[type=checkbox] { width: 20px; height: 20px; margin-top: 8px; }
+	.q textarea { width: 100%; min-height: 40px; font: inherit; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--text); resize: vertical; }
+	.q.off textarea { opacity: .45; }
+	.q .actions { display: flex; flex-direction: column; gap: 4px; }
+	.q .actions button { padding: 4px 10px; font-size: 13px; }
+	#manual { flex: 1; min-width: 200px; font: inherit; padding: 9px; border-radius: 9px; border: 1px solid var(--line); background: var(--bg); color: var(--text); }
+	.ok { color: var(--accent); font-weight: 600; }
+	.err { color: var(--warn); font-weight: 600; }
+	.hidden { display: none !important; }
+	@media (max-width: 600px) { .q { grid-template-columns: auto 1fr; } .q .num, .q input[type=checkbox] { grid-row: 1; } .q .actions { flex-direction: row; grid-column: 1 / -1; } }
+</style>
+</head>
+<body>
+<header>
+	<h1>Homework Break</h1>
+	<nav><a class="here" href="/">Scan</a> <a href="/print">Answers &amp; Print</a></nav>
+</header>
+<main>
+	<section class="card">
+		<h2>1. Take a picture of your homework</h2>
+		<p class="hint">Hold the sheet flat and close to the webcam with good light. You can also upload a photo instead, for example one from your phone.</p>
+		<div class="row">
+			<button id="startCam" class="primary">Start webcam</button>
+			<select id="cameras" class="hidden"></select>
+			<button id="snap" class="hidden primary">Take picture</button>
+			<label class="filebtn">Upload a photo<input id="upload" type="file" accept="image/*"></label>
+			<button id="crop" class="hidden">Crop to the paper</button>
+			<button id="applyCrop" class="hidden primary">Use this crop</button>
+			<button id="cancelCrop" class="hidden">Cancel crop</button>
+			<button id="rotate" class="hidden">Rotate photo</button>
+			<button id="retake" class="hidden">Retake</button>
+		</div>
+		<div class="stage">
+			<video id="video" class="hidden" autoplay playsinline muted></video>
+			<canvas id="photo" class="hidden"></canvas>
+			<svg id="overlay" class="hidden"></svg>
+		</div>
+		<div id="status"></div>
+		<progress id="progress" class="hidden" max="1" value="0"></progress>
+	</section>
+
+	<section class="card" id="questionsCard">
+		<h2>2. Check the questions</h2>
+		<p class="hint">The scanner isn't perfect, so fix any mistakes. Untick anything that isn't a question, or use "Join with above" when one question got split into two.</p>
+		<div id="questions"></div>
+		<div class="row" style="margin-top: 12px">
+			<input id="manual" placeholder="Add a question by typing it here">
+			<button id="addManual">Add</button>
+		</div>
+	</section>
+
+	<section class="card">
+		<h2>3. Send them to Minecraft</h2>
+		<p class="hint">They'll pop up one at a time while you play. Each one has a box for your answer and a drawing area for working it out.</p>
+		<div class="row">
+			<button id="send" class="primary" disabled>Send to Minecraft</button>
+			<span id="sendStatus"></span>
+		</div>
+	</section>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
+<script>
+const MAX_SIDE = 2000;
+const $ = id => document.getElementById(id);
+const video = $("video"), photo = $("photo"), overlay = $("overlay");
+let stream = null;
+let hasPhoto = false;
+let groups = [];   // { text, box: [x, y, w, h] | null, include }
+
+function setStatus(text, cls) {
+	$("status").textContent = text;
+	$("status").className = cls || "";
+}
+
+// ---------- camera ----------
+
+async function startCamera(deviceId) {
+	stopCamera();
+	try {
+		stream = await navigator.mediaDevices.getUserMedia({
+			video: deviceId
+				? { deviceId: { exact: deviceId }, width: { ideal: 1920 }, height: { ideal: 1080 } }
+				: { width: { ideal: 1920 }, height: { ideal: 1080 } },
+			audio: false
+		});
+	} catch (e) {
+		setStatus("Couldn't open the webcam (" + e.name + "). Check your browser allowed it, or upload a photo instead.", "err");
+		return;
+	}
+	video.srcObject = stream;
+	video.classList.remove("hidden");
+	photo.classList.add("hidden");
+	overlay.classList.add("hidden");
+	$("snap").classList.remove("hidden");
+	$("retake").classList.add("hidden");
+	$("rotate").classList.add("hidden");
+	hasPhoto = false;
+	endCropMode();
+	$("crop").classList.add("hidden");
+	setStatus("");
+
+	const cams = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === "videoinput");
+	const sel = $("cameras");
+	if (cams.length > 1) {
+		const current = stream.getVideoTracks()[0].getSettings().deviceId;
+		sel.replaceChildren(...cams.map((c, i) => {
+			const o = document.createElement("option");
+			o.value = c.deviceId;
+			o.textContent = c.label || ("Camera " + (i + 1));
+			o.selected = c.deviceId === current;
+			return o;
+		}));
+		sel.classList.remove("hidden");
+	}
+}
+
+function stopCamera() {
+	if (stream) stream.getTracks().forEach(t => t.stop());
+	stream = null;
+}
+
+function drawToPhoto(source, sw, sh) {
+	const scale = Math.min(1, MAX_SIDE / Math.max(sw, sh));
+	photo.width = Math.round(sw * scale);
+	photo.height = Math.round(sh * scale);
+	photo.getContext("2d").drawImage(source, 0, 0, photo.width, photo.height);
+	showPhoto();
+}
+
+function showPhoto() {
+	hasPhoto = true;
+	video.classList.add("hidden");
+	$("snap").classList.add("hidden");
+	$("cameras").classList.add("hidden");
+	photo.classList.remove("hidden");
+	overlay.classList.remove("hidden");
+	$("rotate").classList.remove("hidden");
+	$("retake").classList.remove("hidden");
+	$("crop").classList.remove("hidden");
+	endCropMode();
+	overlay.setAttribute("viewBox", `0 0 ${photo.width} ${photo.height}`);
+	runOcr();
+}
+
+$("startCam").onclick = () => startCamera();
+$("cameras").onchange = e => startCamera(e.target.value);
+$("snap").onclick = () => {
+	drawToPhoto(video, video.videoWidth, video.videoHeight);
+	stopCamera();
+};
+$("retake").onclick = () => startCamera();
+$("upload").onchange = e => {
+	const file = e.target.files[0];
+	if (!file) return;
+	const img = new Image();
+	img.onload = () => { stopCamera(); drawToPhoto(img, img.naturalWidth, img.naturalHeight); URL.revokeObjectURL(img.src); };
+	img.src = URL.createObjectURL(file);
+	e.target.value = "";
+};
+$("rotate").onclick = () => {
+	const copy = document.createElement("canvas");
+	copy.width = photo.height;
+	copy.height = photo.width;
+	const ctx = copy.getContext("2d");
+	ctx.translate(copy.width, 0);
+	ctx.rotate(Math.PI / 2);
+	ctx.drawImage(photo, 0, 0);
+	photo.width = copy.width;
+	photo.height = copy.height;
+	photo.getContext("2d").drawImage(copy, 0, 0);
+	showPhoto();
+};
+
+// ---------- cropping ----------
+
+let cropping = false, cropRect = null, cropStart = null;
+
+function photoPoint(e) {
+	const r = photo.getBoundingClientRect();
+	return [
+		Math.max(0, Math.min(photo.width, (e.clientX - r.left) / r.width * photo.width)),
+		Math.max(0, Math.min(photo.height, (e.clientY - r.top) / r.height * photo.height))
+	];
+}
+
+function endCropMode() {
+	cropping = false;
+	cropRect = null;
+	photo.style.cursor = "";
+	$("applyCrop").classList.add("hidden");
+	$("cancelCrop").classList.add("hidden");
+	if (hasPhoto) $("crop").classList.remove("hidden");
+}
+
+$("crop").onclick = () => {
+	cropping = true;
+	cropRect = null;
+	photo.style.cursor = "crosshair";
+	$("crop").classList.add("hidden");
+	$("cancelCrop").classList.remove("hidden");
+	overlay.replaceChildren();
+	setStatus("Drag a box around your paper on the photo.");
+};
+$("cancelCrop").onclick = () => { endCropMode(); setStatus(""); drawOverlay(); };
+photo.addEventListener("pointerdown", e => {
+	if (!cropping) return;
+	e.preventDefault();
+	photo.setPointerCapture(e.pointerId);
+	cropStart = photoPoint(e);
+});
+photo.addEventListener("pointermove", e => {
+	if (!cropping || !cropStart) return;
+	const p = photoPoint(e);
+	cropRect = [Math.min(cropStart[0], p[0]), Math.min(cropStart[1], p[1]), Math.abs(p[0] - cropStart[0]), Math.abs(p[1] - cropStart[1])];
+	const r = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+	r.setAttribute("x", cropRect[0]); r.setAttribute("y", cropRect[1]);
+	r.setAttribute("width", cropRect[2]); r.setAttribute("height", cropRect[3]);
+	r.setAttribute("fill", "none");
+	r.setAttribute("stroke-width", Math.max(3, photo.width / 300));
+	r.setAttribute("stroke-dasharray", "12 8");
+	r.style.stroke = "var(--box)";
+	overlay.replaceChildren(r);
+});
+photo.addEventListener("pointerup", () => {
+	cropStart = null;
+	if (cropping && cropRect && cropRect[2] > 20 && cropRect[3] > 20) $("applyCrop").classList.remove("hidden");
+});
+$("applyCrop").onclick = () => {
+	const [x, y, w, h] = cropRect.map(Math.round);
+	const copy = document.createElement("canvas");
+	copy.width = w;
+	copy.height = h;
+	copy.getContext("2d").drawImage(photo, x, y, w, h, 0, 0, w, h);
+	photo.width = w;
+	photo.height = h;
+	photo.getContext("2d").drawImage(copy, 0, 0);
+	showPhoto();
+};
+
+// ---------- reading the text ----------
+
+const QUESTION_START = /^\s*(\(?\d{1,3}\s*[.):]|\(?[a-hA-H][.)]\s|Q\s*\d+|Question\s*\d+|Problem\s*\d+)/i;
+
+async function runOcr() {
+	if (typeof Tesseract === "undefined") {
+		setStatus("The text scanner couldn't load (are you online?). You can still type questions below.", "err");
+		groups = groups.filter(g => !g.box);
+		render();
+		return;
+	}
+	setStatus("Reading your homework...");
+	$("progress").classList.remove("hidden");
+	$("progress").value = 0;
+	try {
+		const result = await Tesseract.recognize(photo, "eng", {
+			logger: m => { if (m.status === "recognizing text") $("progress").value = m.progress; }
+		});
+		const lines = (result.data.lines || []).filter(l => l.text.trim().length > 1 && l.confidence > 25);
+		const scanned = groupLines(lines);
+		groups = groups.filter(g => !g.box).concat(scanned);
+		groups.sort((a, b) => (a.box ? 0 : 1) - (b.box ? 0 : 1));
+		setStatus(scanned.length
+			? `Found ${scanned.length} question${scanned.length === 1 ? "" : "s"}. Check them below.`
+			: "Couldn't find any writing. Try more light, hold the paper closer, or rotate the photo.",
+			scanned.length ? "ok" : "err");
+	} catch (e) {
+		setStatus("Scanning failed: " + e.message, "err");
+	}
+	$("progress").classList.add("hidden");
+	render();
+}
+
+function groupLines(lines) {
+	const anyNumbered = lines.some(l => QUESTION_START.test(l.text));
+	const out = [];
+	let seenNumbered = false;
+	for (const l of lines) {
+		const b = l.bbox;
+		const box = [b.x0, b.y0, b.x1 - b.x0, b.y1 - b.y0];
+		const text = l.text.replace(/\s+/g, " ").trim();
+		const numbered = QUESTION_START.test(text);
+		seenNumbered = seenNumbered || numbered;
+		if (!anyNumbered || numbered || !seenNumbered) {
+			// Lines above the first numbered question are usually the title or "Name:", so leave them unticked.
+			out.push({ text, box, include: !anyNumbered || seenNumbered });
+		} else {
+			joinInto(out[out.length - 1], { text, box });
+		}
+	}
+	return out;
+}
+
+function joinInto(target, other) {
+	target.text = (target.text + " " + other.text).trim();
+	if (target.box && other.box) {
+		const x0 = Math.min(target.box[0], other.box[0]);
+		const y0 = Math.min(target.box[1], other.box[1]);
+		const x1 = Math.max(target.box[0] + target.box[2], other.box[0] + other.box[2]);
+		const y1 = Math.max(target.box[1] + target.box[3], other.box[1] + other.box[3]);
+		target.box = [x0, y0, x1 - x0, y1 - y0];
+	} else {
+		target.box = target.box || other.box;
+	}
+}
+
+// ---------- question list ----------
+
+function render() {
+	const list = $("questions");
+	list.replaceChildren();
+	let n = 0;
+	groups.forEach((g, i) => {
+		const row = document.createElement("div");
+		row.className = "q" + (g.include ? "" : " off");
+
+		const num = document.createElement("span");
+		num.className = "num";
+		num.textContent = g.include ? ++n : "–";
+
+		const check = document.createElement("input");
+		check.type = "checkbox";
+		check.checked = g.include;
+		check.title = "Include this question";
+		check.onchange = () => { g.include = check.checked; render(); };
+
+		const text = document.createElement("textarea");
+		text.value = g.text;
+		text.rows = Math.min(4, Math.ceil(g.text.length / 70) || 1);
+		text.oninput = () => { g.text = text.value; updateSend(); };
+
+		const actions = document.createElement("div");
+		actions.className = "actions";
+		if (i > 0) {
+			const join = document.createElement("button");
+			join.textContent = "Join with above";
+			join.onclick = () => { joinInto(groups[i - 1], g); groups.splice(i, 1); render(); };
+			actions.append(join);
+		}
+		const del = document.createElement("button");
+		del.textContent = "Remove";
+		del.onclick = () => { groups.splice(i, 1); render(); };
+		actions.append(del);
+
+		row.append(num, check, text, actions);
+		list.append(row);
+	});
+	if (!groups.length) {
+		const p = document.createElement("p");
+		p.className = "hint";
+		p.textContent = "No questions yet. Take a picture above, or type one below.";
+		list.append(p);
+	}
+	drawOverlay();
+	updateSend();
+}
+
+function drawOverlay() {
+	overlay.replaceChildren();
+	if (!hasPhoto) return;
+	const ns = "http://www.w3.org/2000/svg";
+	const stroke = Math.max(2, photo.width / 400);
+	let n = 0;
+	for (const g of groups) {
+		if (!g.box || !g.include) continue;
+		n++;
+		const r = document.createElementNS(ns, "rect");
+		r.setAttribute("x", g.box[0] - 4);
+		r.setAttribute("y", g.box[1] - 4);
+		r.setAttribute("width", g.box[2] + 8);
+		r.setAttribute("height", g.box[3] + 8);
+		r.setAttribute("fill", "rgba(47,111,219,0.08)");
+		r.style.stroke = "var(--box)";
+		r.setAttribute("stroke-width", stroke);
+		r.setAttribute("rx", 4);
+		const t = document.createElementNS(ns, "text");
+		t.setAttribute("x", Math.max(2, g.box[0] - 6));
+		t.setAttribute("y", g.box[1] + g.box[3] / 2);
+		t.setAttribute("text-anchor", "end");
+		t.setAttribute("dominant-baseline", "middle");
+		t.setAttribute("font-size", Math.max(16, photo.width / 50));
+		t.setAttribute("font-weight", "700");
+		t.style.fill = "var(--box)";
+		t.textContent = n;
+		overlay.append(r, t);
+	}
+}
+
+function updateSend() {
+	$("send").disabled = !groups.some(g => g.include && g.text.trim());
+}
+
+$("addManual").onclick = () => {
+	const v = $("manual").value.trim();
+	if (!v) return;
+	groups.push({ text: v, box: null, include: true });
+	$("manual").value = "";
+	render();
+};
+$("manual").onkeydown = e => { if (e.key === "Enter") $("addManual").click(); };
+
+// ---------- send ----------
+
+$("send").onclick = async () => {
+	const chosen = groups.filter(g => g.include && g.text.trim());
+	const fromPhoto = chosen.some(g => g.box);
+	const body = {
+		image: fromPhoto ? photo.toDataURL("image/jpeg", 0.85) : null,
+		width: photo.width,
+		height: photo.height,
+		questions: chosen.map(g => ({ text: g.text.trim(), box: g.box }))
+	};
+	$("send").disabled = true;
+	$("sendStatus").textContent = "Sending...";
+	$("sendStatus").className = "";
+	try {
+		const res = await fetch("/api/scan", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+		if (!res.ok) throw new Error(await res.text());
+		$("sendStatus").textContent = `Sent ${chosen.length} question${chosen.length === 1 ? "" : "s"} to Minecraft!`;
+		$("sendStatus").className = "ok";
+		groups = [];
+		hasPhoto = false;
+		photo.classList.add("hidden");
+		overlay.classList.add("hidden");
+		$("rotate").classList.add("hidden");
+		$("retake").classList.add("hidden");
+		$("crop").classList.add("hidden");
+		setStatus("");
+		render();
+	} catch (e) {
+		$("sendStatus").textContent = "Couldn't send. Is Minecraft still running? (" + e.message + ")";
+		$("sendStatus").className = "err";
+		$("send").disabled = false;
+	}
+};
+
+render();
+</script>
+</body>
+</html>

@@ -1,33 +1,56 @@
 # Homework Break (Minecraft 26.2, Fabric)
 
-Every 10–20 minutes of playing, this mod pauses the game and shows you the next
-question from your homework. You work it out and write the answer on your
-homework paper. After a minute, the **"I wrote it on my paper ✓"** button
-unlocks and you can keep playing. Esc won't close it.
+Every 10–20 minutes of playing, this mod pauses the game and gives you the next
+question from your homework. You type your answer in a box and can work it out
+in a drawing area next to it. Once you're done, you can print your homework
+sheet with all your answers written on it.
 
 ## Install
 
 1. Install [Fabric Loader](https://fabricmc.net/use/installer/) for Minecraft **26.2**.
 2. Put these in your `.minecraft/mods` folder:
-   - `dist/homeworkbreak-1.0.0.jar` from this folder
+   - `dist/homeworkbreak-2.0.0.jar` from this folder
    - [Fabric API](https://modrinth.com/mod/fabric-api) for 26.2
-3. Launch Minecraft with the Fabric profile once. That creates the config folder.
+3. Launch Minecraft with the Fabric profile.
 
-## Add your homework
+## 1. Scan your homework with the webcam
 
-Open `.minecraft/config/homeworkbreak/questions.txt` and put one question per line:
+Press **Esc** in game and click the **Homework** button in the top-left corner
+(or type `/homework` in chat). Your browser opens the homework page.
 
-```
-Solve for x: 3x + 5 = 20
-Page 42, question 7
-Write one sentence using the word "enormous".
-```
+1. Click **Start webcam**, hold your homework sheet up to the camera, and click
+   **Take picture**. (Or click **Upload a photo** to use a picture from your phone.)
+2. Click **Crop to the paper** and drag a box around the sheet, so the printout
+   is just your homework.
+3. The page reads the questions off the photo. Check them: fix any typos, untick
+   things that aren't questions, and use **Join with above** if a question got
+   split in two. You can also type extra questions in.
+4. Click **Send to Minecraft**.
 
-Lines starting with `#` are ignored. Delete the two example lines. You can
-edit this file while the game is running; it's re-read at every break.
+The text reader runs in your browser and downloads its files from the internet
+the first time, so you need to be online for scanning. The page only works on
+your own computer while Minecraft is running.
 
-Questions come up in order. Once you've done them all, the breaks stop.
-To start over with a new list, delete `progress.txt` in the same folder.
+## 2. Answer questions while you play
+
+When a homework break pops up:
+
+- **Left side:** the question, plus a box to type your answer.
+- **Right side:** a drawing area for working things out with your mouse.
+  **Undo** removes the last line and **Clear drawing** wipes it.
+- The **Done** button unlocks after a minute, once you've typed an answer.
+  Esc won't close it.
+
+Want to do one right now? Type `/homework now`.
+
+## 3. Print your answers
+
+Type `/homework print` (or click **Answers & Print** on the homework page).
+Your scanned sheet shows your typed answers and drawings under each question.
+Drag any answer to move it if it's in the wrong spot, then click **Print**.
+
+The **All questions** list at the bottom lets you delete questions or make a
+finished one come back again ("Ask again").
 
 ## Settings
 
@@ -37,7 +60,12 @@ To start over with a new list, delete `progress.txt` in the same folder.
 |---|---|---|
 | `min_minutes_between_questions` | 10 | Shortest gap between breaks |
 | `max_minutes_between_questions` | 20 | Longest gap between breaks |
-| `min_seconds_on_each_question` | 60 | How long before the "done" button unlocks |
+| `min_seconds_on_each_question` | 60 | How long before the Done button unlocks |
+| `web_page_port` | 25599 | Port for the homework page; change it if something else uses 25599 |
+
+You can still type questions into `config/homeworkbreak/questions.txt`
+(one per line) instead of scanning. Everything you've done is saved in
+`config/homeworkbreak/homework.json` and the photos in `config/homeworkbreak/scans/`.
 
 Only time spent actually playing counts (time in menus doesn't). In
 singleplayer the game is paused during a break. On a multiplayer server the

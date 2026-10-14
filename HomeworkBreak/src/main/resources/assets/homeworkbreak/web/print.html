@@ -1,0 +1,323 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Homework Answers</title>
+<style>
+	:root {
+		--bg: #f5f3ee; --card: #ffffff; --text: #1d1d1f; --muted: #6b6b70; --line: #dedad2;
+		--accent: #3a7d2c; --accent-text: #ffffff; --warn: #b3261e; --ink: #1a2a9c;
+	}
+	@media (prefers-color-scheme: dark) {
+		:root {
+			--bg: #17171a; --card: #222226; --text: #ededf0; --muted: #a0a0a8; --line: #3a3a40;
+			--accent: #5fae4c; --accent-text: #0d1a0a; --warn: #ff8a80;
+		}
+	}
+	* { box-sizing: border-box; }
+	body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+	header { display: flex; align-items: center; gap: 16px; padding: 14px 20px; border-bottom: 1px solid var(--line); background: var(--card); }
+	header h1 { font-size: 20px; margin: 0; flex: 1; }
+	nav a { color: var(--text); text-decoration: none; padding: 6px 12px; border-radius: 8px; }
+	nav a.here { background: var(--accent); color: var(--accent-text); }
+	main { max-width: 1000px; margin: 0 auto; padding: 20px 16px 60px; display: grid; gap: 20px; }
+	.card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 18px; }
+	.card h2 { margin: 0 0 4px; font-size: 18px; }
+	.hint { color: var(--muted); margin: 0 0 14px; font-size: 14px; }
+	.row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+	button { font: inherit; padding: 9px 16px; border-radius: 9px; border: 1px solid var(--line); background: var(--card); color: var(--text); cursor: pointer; }
+	button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); font-weight: 600; }
+	button.danger { color: var(--warn); }
+	button.small { padding: 4px 10px; font-size: 13px; }
+
+	/* The printable sheets are always black ink on white paper, even in dark mode. */
+	.sheet { background: #fff; color: #111; border-radius: 6px; box-shadow: 0 1px 4px rgba(0,0,0,.2); padding: 0; overflow: hidden; }
+	.photo { position: relative; margin: 0 auto; container-type: inline-size; }
+	.photo img { display: block; width: 100%; height: auto; user-select: none; -webkit-user-drag: none; }
+	.answer {
+		position: absolute; color: var(--ink); font-family: "Comic Sans MS", "Chalkboard SE", "Segoe Print", cursive;
+		line-height: 1.2; white-space: pre-wrap; max-width: 60cqw; cursor: grab; touch-action: none;
+		padding: .1em .3em; border-radius: 4px; border: 1px dashed rgba(26,42,156,.45); background: rgba(255,255,255,.6);
+	}
+	.answer.dragging { cursor: grabbing; outline: 2px solid var(--ink); }
+	.drawing { display: block; margin-top: .3em; height: auto; }
+	.typed { padding: 24px 28px; }
+	.typed h3 { margin: 0 0 12px; font-size: 18px; }
+	.typed .item { padding: 10px 0; border-top: 1px solid #ddd; break-inside: avoid; }
+	.typed .item:first-of-type { border-top: 0; }
+	.typed .qt { font-weight: 600; }
+	.typed .at { color: var(--ink); font-family: "Comic Sans MS", "Chalkboard SE", "Segoe Print", cursive; white-space: pre-wrap; margin-top: 4px; }
+	.typed .item { font-size: 16px; }
+
+	table { width: 100%; border-collapse: collapse; font-size: 14px; }
+	th, td { text-align: left; padding: 8px 6px; border-top: 1px solid var(--line); vertical-align: top; }
+	th { color: var(--muted); font-weight: 600; border-top: 0; }
+	.status-done { color: var(--accent); font-weight: 600; }
+	.status-todo { color: var(--muted); }
+	td.actions { white-space: nowrap; }
+	.empty { color: var(--muted); }
+
+	@page { margin: 10mm; }
+	@media print {
+		body { background: #fff; }
+		header, .no-print { display: none !important; }
+		main { padding: 0; max-width: none; gap: 0; display: block; }
+		.sheet { box-shadow: none; border-radius: 0; break-after: page; }
+		.answer { border-color: transparent; background: transparent; }
+	}
+</style>
+</head>
+<body>
+<header>
+	<h1>Homework Break</h1>
+	<nav><a href="/">Scan</a> <a class="here" href="/print">Answers &amp; Print</a></nav>
+</header>
+<main>
+	<section class="card no-print">
+		<h2>Your answers on your homework</h2>
+		<p class="hint">Answers you typed in Minecraft are placed under each question on the photo of your homework. Drag an answer to move it if it's in the wrong spot. Questions you haven't answered yet don't show.</p>
+		<div class="row">
+			<button class="primary" onclick="window.print()">Print</button>
+			<button onclick="load()">Refresh</button>
+		</div>
+	</section>
+
+	<div id="sheets"></div>
+
+	<section class="card no-print">
+		<h2>All questions</h2>
+		<p class="hint">"Ask again" makes a finished question come back in Minecraft.</p>
+		<div id="manage"></div>
+		<div class="row" style="margin-top: 14px">
+			<button class="danger" id="clearAll">Delete all homework</button>
+		</div>
+	</section>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+const ns = "http://www.w3.org/2000/svg";
+let data = { scans: [], questions: [] };
+
+async function load() {
+	const res = await fetch("/api/homework");
+	data = await res.json();
+	render();
+}
+
+async function post(path, body) {
+	const res = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+	if (!res.ok) throw new Error(await res.text());
+	data = await res.json();
+}
+
+const hasWork = q => (q.answer && q.answer.trim()) || (q.strokes && q.strokes.length);
+
+// Full width of the in-game drawing area, in em of the answer text.
+const DRAWING_EM = 11;
+
+function drawingSvg(q) {
+	if (!q.strokes || !q.strokes.length) return null;
+	const w = 1000, h = Math.round(1000 / (q.drawingAspect || 1));
+	// Crop to just the part that was drawn on, so small sketches stay small.
+	let x0 = 1, y0 = 1, x1 = 0, y1 = 0;
+	for (const s of q.strokes) {
+		for (let i = 0; i + 1 < s.length; i += 2) {
+			x0 = Math.min(x0, s[i]); x1 = Math.max(x1, s[i]);
+			y0 = Math.min(y0, s[i + 1]); y1 = Math.max(y1, s[i + 1]);
+		}
+	}
+	const pad = 0.03;
+	x0 = Math.max(0, x0 - pad); y0 = Math.max(0, y0 - pad * (q.drawingAspect || 1));
+	x1 = Math.min(1, x1 + pad); y1 = Math.min(1, y1 + pad * (q.drawingAspect || 1));
+	const svg = document.createElementNS(ns, "svg");
+	svg.setAttribute("viewBox", `${x0 * w} ${y0 * h} ${Math.max(1, (x1 - x0) * w)} ${Math.max(1, (y1 - y0) * h)}`);
+	svg.style.width = Math.max(3, (x1 - x0) * DRAWING_EM) + "em";
+	svg.classList.add("drawing");
+	for (const s of q.strokes) {
+		const pts = [];
+		for (let i = 0; i + 1 < s.length; i += 2) pts.push((s[i] * w).toFixed(1) + "," + (s[i + 1] * h).toFixed(1));
+		const line = document.createElementNS(ns, "polyline");
+		line.setAttribute("points", pts.join(" "));
+		line.setAttribute("fill", "none");
+		line.setAttribute("stroke", "#1a2a9c");
+		line.setAttribute("stroke-width", "2");
+		line.setAttribute("vector-effect", "non-scaling-stroke");
+		line.setAttribute("stroke-linecap", "round");
+		line.setAttribute("stroke-linejoin", "round");
+		svg.append(line);
+	}
+	return svg;
+}
+
+function render() {
+	const sheets = $("sheets");
+	sheets.replaceChildren();
+
+	for (const scan of data.scans) {
+		const qs = data.questions.filter(q => q.scanId === scan.id);
+		if (!qs.length) continue;
+		const sheet = document.createElement("section");
+		sheet.className = "sheet";
+		const photo = document.createElement("div");
+		photo.className = "photo";
+		// Make the whole photo fit on one printed page.
+		photo.style.width = `min(100%, calc(96vh * ${scan.width / scan.height}))`;
+		const img = document.createElement("img");
+		img.src = "/scans/" + encodeURIComponent(scan.file);
+		img.alt = "Your homework";
+		photo.append(img);
+
+		// Size answers like the writing on the sheet, using the usual height of one line.
+		const heights = qs.map(q => q.box[3]).sort((a, b) => a - b);
+		const lineHeight = heights[Math.floor((heights.length - 1) / 2)];
+		const fontSize = Math.min(3, Math.max(1, lineHeight / scan.width * 100 * 1.05));
+		for (const q of qs) {
+			if (!hasWork(q)) continue;
+			photo.append(answerBox(q, scan, photo, fontSize));
+		}
+		sheet.append(photo);
+		sheets.append(sheet);
+	}
+
+	const typed = data.questions.filter(q => !q.scanId && hasWork(q));
+	if (typed.length) {
+		const sheet = document.createElement("section");
+		sheet.className = "sheet typed";
+		const h = document.createElement("h3");
+		h.textContent = "Homework answers";
+		sheet.append(h);
+		typed.forEach((q, i) => {
+			const item = document.createElement("div");
+			item.className = "item";
+			const qt = document.createElement("div");
+			qt.className = "qt";
+			qt.textContent = (i + 1) + ". " + q.text;
+			const at = document.createElement("div");
+			at.className = "at";
+			at.textContent = q.answer || "";
+			item.append(qt, at);
+			const d = drawingSvg(q);
+			if (d) item.append(d);
+			sheet.append(item);
+		});
+		sheets.append(sheet);
+	}
+
+	if (!sheets.children.length) {
+		const p = document.createElement("section");
+		p.className = "card empty";
+		p.textContent = "No answers yet. Answer some questions in Minecraft, then press Refresh.";
+		sheets.append(p);
+	}
+
+	renderManage();
+}
+
+function answerBox(q, scan, photo, fontSize) {
+	const div = document.createElement("div");
+	div.className = "answer";
+	const [bx, by, bw, bh] = q.box;
+	const pos = q.answerPos || [bx, by + bh + 4];
+	div.style.left = (pos[0] / scan.width * 100) + "%";
+	div.style.top = (pos[1] / scan.height * 100) + "%";
+	div.style.fontSize = fontSize + "cqw";
+
+	const text = document.createElement("div");
+	text.textContent = q.answer || "";
+	div.append(text);
+	const d = drawingSvg(q);
+	if (d) div.append(d);
+
+	// Drag to move
+	div.addEventListener("pointerdown", e => {
+		e.preventDefault();
+		div.setPointerCapture(e.pointerId);
+		div.classList.add("dragging");
+		const rect = photo.getBoundingClientRect();
+		const startX = e.clientX, startY = e.clientY;
+		const startLeft = div.offsetLeft, startTop = div.offsetTop;
+		const move = ev => {
+			div.style.left = ((startLeft + ev.clientX - startX) / rect.width * 100) + "%";
+			div.style.top = ((startTop + ev.clientY - startY) / rect.height * 100) + "%";
+		};
+		const up = async () => {
+			div.removeEventListener("pointermove", move);
+			div.classList.remove("dragging");
+			const x = div.offsetLeft / rect.width * scan.width;
+			const y = div.offsetTop / rect.height * scan.height;
+			q.answerPos = [x, y];
+			try { await post("/api/question", { id: q.id, action: "move", x, y }); } catch (err) { console.error(err); }
+		};
+		div.addEventListener("pointermove", move);
+		div.addEventListener("pointerup", up, { once: true });
+	});
+	return div;
+}
+
+function renderManage() {
+	const box = $("manage");
+	box.replaceChildren();
+	if (!data.questions.length) {
+		const p = document.createElement("p");
+		p.className = "empty";
+		p.innerHTML = 'No homework yet. <a href="/">Scan some</a>.';
+		box.append(p);
+		return;
+	}
+	const table = document.createElement("table");
+	const head = document.createElement("tr");
+	for (const t of ["#", "Question", "Answer", "Status", ""]) {
+		const th = document.createElement("th");
+		th.textContent = t;
+		head.append(th);
+	}
+	table.append(head);
+	data.questions.forEach((q, i) => {
+		const tr = document.createElement("tr");
+		const cells = [String(i + 1), q.text, (q.answer || "").slice(0, 80) + ((q.answer || "").length > 80 ? "..." : "")];
+		for (const c of cells) {
+			const td = document.createElement("td");
+			td.textContent = c;
+			tr.append(td);
+		}
+		const st = document.createElement("td");
+		st.textContent = q.done ? "Done" : "Not yet";
+		st.className = q.done ? "status-done" : "status-todo";
+		tr.append(st);
+
+		const act = document.createElement("td");
+		act.className = "actions";
+		if (q.done) {
+			const again = document.createElement("button");
+			again.className = "small";
+			again.textContent = "Ask again";
+			again.onclick = async () => { await post("/api/question", { id: q.id, action: "reopen" }); render(); };
+			act.append(again, " ");
+		}
+		const del = document.createElement("button");
+		del.className = "small danger";
+		del.textContent = "Delete";
+		del.onclick = async () => {
+			if (!confirm("Delete this question?")) return;
+			await post("/api/question", { id: q.id, action: "delete" });
+			render();
+		};
+		act.append(del);
+		tr.append(act);
+		table.append(tr);
+	});
+	box.append(table);
+}
+
+$("clearAll").onclick = async () => {
+	if (!confirm("Delete ALL homework questions, answers and photos? This can't be undone.")) return;
+	await post("/api/clear", {});
+	render();
+};
+
+load();
+</script>
+</body>
+</html>
