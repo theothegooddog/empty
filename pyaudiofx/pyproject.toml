@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pyaudiofx"
+version = "0.1.0"
+description = "Load, play, edit and apply effects to audio with a small chainable API"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "numpy>=1.22",
+    "scipy>=1.9",
+    "soundfile>=0.12",
+    "sounddevice>=0.4",
+]
+
+[project.optional-dependencies]
+test = ["pytest"]
+
+[tool.setuptools]
+packages = ["pyaudiofx"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
