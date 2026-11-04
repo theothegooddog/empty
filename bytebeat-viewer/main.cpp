@@ -242,7 +242,7 @@ static DWORD WINAPI AudioThread(LPVOID) {
 static uint8_t g_rgb[CH][CW][3];
 static uint8_t g_p[CH][CW];          // 1 = waveform point, 2 = waveform line
 static uint32_t g_dib[CH * CW];
-static int g_scale = 5;              // dollchan default draw scale
+static int g_scale = 0;              // draw scale 0 = 1x zoom (1 sample per pixel column)
 static double g_lastColAbs = -1;
 static float g_prevL = NAN, g_prevR = NAN;
 static bool g_havePrev = false;
