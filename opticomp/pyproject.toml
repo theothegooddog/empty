@@ -4,11 +4,11 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "opticomp"
-version = "0.1.0"
-description = "Optimize a Python script in memory and run the optimized copy - just `import opticomp`."
+version = "0.2.0"
+description = "Optimize a Python script in memory with 331 techniques and run the optimized copy - just `import opticomp`."
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 license = { text = "MIT" }
 
 [tool.setuptools]
-packages = ["opticomp"]
+packages = ["opticomp", "opticomp.passes"]

@@ -11,6 +11,8 @@ Environment variables:
                            2 = also aggressive passes
     OPTICOMP_VERBOSE=1     print what was optimized to stderr
     OPTICOMP_DISABLE=1     run the original script untouched
+    OPTICOMP_SKIP=a,b      turn off individual techniques (names from --list)
+    OPTICOMP_ONLY=a,b      use only these techniques
     OPTICOMP_CACHE=0       don't cache optimized bytecode
     OPTICOMP_CACHE_DIR=..  cache location (default ~/.cache/opticomp)
 """
@@ -18,8 +20,9 @@ Environment variables:
 from ._runner import VERSION as __version__
 from ._runner import bootstrap as _bootstrap
 from ._runner import run_path
-from .optimizer import Report, optimize_source, optimize_tree
+from .passes import optimize_source, optimize_tree
+from .registry import TECHNIQUES, Report
 
-__all__ = ["optimize_source", "optimize_tree", "run_path", "Report", "__version__"]
+__all__ = ["optimize_source", "optimize_tree", "run_path", "Report", "TECHNIQUES", "__version__"]
 
 _bootstrap()

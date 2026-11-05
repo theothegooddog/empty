@@ -10,9 +10,9 @@ import sys
 import tokenize
 import types
 
-from .optimizer import optimize_tree
+from .passes import optimize_tree
 
-VERSION = "0.1.0"
+VERSION = "0.2.0"
 _THIS_PACKAGE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
@@ -32,6 +32,11 @@ def _level() -> int:
         return 1
 
 
+def _name_set(var: str):
+    raw = os.environ.get(var, "").strip()
+    return frozenset(x.strip() for x in raw.split(",") if x.strip()) if raw else None
+
+
 # ---------------------------------------------------------------------------
 # compile (with an on-disk cache of the optimized bytecode)
 # ---------------------------------------------------------------------------
@@ -46,9 +51,12 @@ def _cache_dir() -> str:
 def compile_optimized(source: str, filename: str, level: int):
     """Return ``(code_object, report_summary, from_cache)``."""
     use_cache = os.environ.get("OPTICOMP_CACHE", "1") != "0"
-    key = hashlib.sha256(
-        "\0".join([VERSION, sys.version, str(level), filename, source]).encode()
-    ).hexdigest()
+    skip = _name_set("OPTICOMP_SKIP") or frozenset()
+    only = _name_set("OPTICOMP_ONLY")
+    key = hashlib.sha256("\0".join([
+        VERSION, sys.version, str(level), filename, source,
+        ",".join(sorted(skip)), ",".join(sorted(only)) if only is not None else "*",
+    ]).encode()).hexdigest()
     path = os.path.join(_cache_dir(), key + ".bin")
 
     if use_cache:
@@ -60,9 +68,13 @@ def compile_optimized(source: str, filename: str, level: int):
             pass
 
     tree = ast.parse(source, filename=filename)
-    tree, report = optimize_tree(tree, level)
-    code = compile(tree, filename, "exec", dont_inherit=True)
-    summary = report.summary()
+    try:
+        opt_tree, report = optimize_tree(tree, level, skip=skip, only=only)
+        code = compile(opt_tree, filename, "exec", dont_inherit=True)
+        summary = report.summary()
+    except Exception as exc:  # never break the program: fall back to the original code
+        code = compile(tree, filename, "exec", dont_inherit=True)
+        summary = f"optimizer failed ({exc!r}); running unoptimized"
 
     if use_cache:
         try:

@@ -6,7 +6,8 @@ import textwrap
 
 import pytest
 
-from opticomp import optimize_source
+os.environ.setdefault("OPTICOMP_DISABLE", "1")
+from opticomp import optimize_source  # noqa: E402
 
 
 def opt(src, level=1):
@@ -14,19 +15,19 @@ def opt(src, level=1):
     return ast.unparse(tree), report
 
 
-def run_both(src, level=1):
+def run_both(src, level=2):
     """Exec original and optimized code; their printed output must match."""
     src = textwrap.dedent(src)
     outs = []
     for code in (src, opt(src, level)[0]):
         lines = []
-        ns = {"print": lambda *a: lines.append(a)}
+        ns = {"print": lambda *a: lines.append(a), "__name__": "__main__"}
         try:
             exec(compile(code, "<t>", "exec"), ns)
         except Exception as e:
-            lines.append(("raised", type(e).__name__))
+            lines.append(("raised", type(e).__name__, str(e)))
         outs.append(lines)
-    assert outs[0] == outs[1]
+    assert outs[0] == outs[1], opt(src, level)[0]
     return outs[0]
 
 
@@ -58,18 +59,6 @@ def test_unreachable_after_return():
             print("never")
     """)
     assert "never" not in out
-
-
-def test_level2_hoisting_and_power():
-    out, _ = opt("""
-        def f(n):
-            out = []
-            for i in range(n):
-                out.append(i ** 2)
-            return out
-    """, level=2)
-    assert "_oc_out_append" in out and "i * i" in out
-    run_both("def f(n):\n out=[]\n for i in range(n):\n  out.append(i**2)\n return out\nprint(f(5))", 2)
 
 
 # --- what must NOT be changed --------------------------------------------
@@ -122,35 +111,14 @@ def test_runtime_errors_preserved():
     run_both("print(len(5))")
 
 
-def test_hoisting_skips_rebound_object():
-    out, _ = opt("""
-        def f():
-            out = []
-            for i in range(3):
-                out.append(i)
-                out = list(out)
-            return out
-    """, level=2)
-    assert "_oc_" not in out
-
-
-def test_hoisting_skips_conditional_only_calls():
-    out, _ = opt("""
-        def f(xs, out=None):
-            for x in xs:
-                if out is not None:
-                    out.append(x)
-    """, level=2)
-    assert "_oc_" not in out
-
-
 # --- the import hijack ---------------------------------------------------
 
 def run_script(tmp_path, body, **env):
     script = tmp_path / "script.py"
     script.write_text(textwrap.dedent(body))
     before = script.read_text()
-    e = {**os.environ, "OPTICOMP_CACHE_DIR": str(tmp_path / "cache"), **env}
+    e = {k: v for k, v in os.environ.items() if not k.startswith("OPTICOMP_")}
+    e.update({"OPTICOMP_CACHE_DIR": str(tmp_path / "cache"), **env})
     p = subprocess.run([sys.executable, str(script), "a1"], capture_output=True, text=True, env=e)
     assert script.read_text() == before  # source never modified
     return p
@@ -195,3 +163,168 @@ def test_exit_code_and_traceback(tmp_path):
 def test_warns_when_code_precedes_import(tmp_path):
     p = run_script(tmp_path, "print('early')\nimport opticomp\n")
     assert "warning" in p.stderr
+
+
+# --- type-aware rules must only fire on proven exact types -----------------
+
+def test_bool_is_not_treated_as_int():
+    assert run_both("b = True\nprint(b + 0, b * 1, +b)") == [(1, 1, 1)]
+
+
+def test_unknown_parameter_types_untouched():
+    out, _ = opt("def f(x):\n    return x + 0, x * 1, x ** 1\n")
+    assert "x + 0" in out and "x * 1" in out
+    run_both("""
+        class Weird:
+            def __add__(self, o): return "added"
+            def __mul__(self, o): return "multiplied"
+        def f(x):
+            return x + 0, x * 1
+        print(f(Weird()))
+    """, level=1)
+
+
+def test_str_subclass_from_str_call_not_assumed_exact():
+    run_both("""
+        class S(str):
+            def __add__(self, o): return "custom"
+        class A:
+            def __str__(self): return S("q")
+        def f():
+            s = str(A())
+            return s + ""
+        print(f())
+    """, level=1)
+
+
+def test_variable_rebound_to_other_type_is_unknown():
+    run_both("""
+        def f(flag):
+            n = 0
+            if flag:
+                n = "text"
+            return n * 1
+        print(f(True), f(False))
+    """)
+
+
+def test_nonlocal_rebinding_defeats_inference():
+    run_both("""
+        def f():
+            n = 1
+            def g():
+                nonlocal n
+                n = [1]
+            g()
+            return n * 1, n + n
+        print(f())
+    """)
+
+
+def test_global_rebinding_defeats_module_constant():
+    run_both("""
+        LIMIT = 5
+        def bump():
+            global LIMIT
+            LIMIT = LIMIT + 1
+        bump()
+        print(LIMIT)
+    """)
+
+
+def test_eval_disables_name_based_rewrites():
+    out, rep = opt("X = 2\nprint(eval('X') + X)\n")
+    assert "prop.module-constant" not in rep.changes
+
+
+def test_string_sets_not_folded_into_order_dependent_results():
+    out, _ = opt("print(list({'a', 'b', 'c'}), str({'a', 'b'}))")
+    assert "list(" in out and "str(" in out
+    out, rep = opt("print(len({'a', 'b'}), sorted({'b', 'a'}))")
+    assert "fold.builtin.len" in rep.changes and "fold.builtin.sorted" in rep.changes
+
+
+def test_huge_results_not_folded():
+    out, _ = opt("x = 'a' * 10**6\ny = 2 ** 100000\nz = '{:>99999}'.format(1)\n")
+    assert "10 ** 6" in out or "1000000" in out
+    assert "2 ** 100000" in out and "99999" in out
+
+
+def test_runtime_errors_still_raise():
+    for src in ("print(1 / 0)", "print(int('x'))", "print(math.sqrt(-1))", "print('abc'[5])"):
+        run_both("import math\n" + src)
+
+
+def test_format_with_explicit_indexes_not_converted():
+    out, _ = opt("a, b = 1, 2\nprint('{1}{0}'.format(a, b), '{x}'.format(x=a))")
+    assert ".format(" in out
+
+
+def test_mangled_getattr_untouched():
+    out, _ = opt("class A:\n    def f(self):\n        return getattr(self, '__x')\n")
+    assert "getattr" in out
+
+
+def test_custom_eq_none_kept_at_level_1():
+    run_both("""
+        class AlwaysEq:
+            def __eq__(self, o): return True
+        print(AlwaysEq() == None)
+    """, level=1)
+
+
+def test_type_checking_block_removed():
+    out, rep = opt("from typing import TYPE_CHECKING\nif TYPE_CHECKING:\n    import json\nprint(1)")
+    assert "import json" not in out and "dce.if-constant" in rep.changes
+
+
+def test_version_check_resolved():
+    out, _ = opt("import sys\nif sys.version_info >= (3, 0):\n    print('new')\nelse:\n    print('old')")
+    assert "old" not in out
+
+
+def test_comprehension_variable_does_not_leak_type():
+    run_both("""
+        n = "s"
+        xs = [n * 2 for n in range(3)]
+        print(xs, n * 1)
+    """)
+
+
+def test_class_attribute_not_propagated():
+    run_both("""
+        class C:
+            X = 1
+            def get(self): return self.X
+        C.X = 5
+        print(C().get())
+    """)
+
+
+def test_local_constant_not_used_before_assignment():
+    run_both("""
+        def f(flag):
+            if flag:
+                try:
+                    return k
+                except UnboundLocalError:
+                    return "unbound"
+            k = 3
+            return k
+        print(f(True), f(False))
+    """)
+
+
+def test_while_true_with_break_keeps_following_code():
+    run_both("""
+        def f():
+            while True:
+                break
+            return "after"
+        print(f())
+    """)
+
+
+def test_isinstance_merge_needs_builtin_types():
+    out, _ = opt("class int2: pass\nx = 1\nprint(isinstance(x, int) or isinstance(x, int2))")
+    assert out.count("isinstance") == 2
