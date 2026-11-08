@@ -12,6 +12,7 @@ Open `index.html` in a browser; it is fully self-contained.
 - 4-letter words score 1; longer words score their length. A pangram (all seven letters) adds +7.
 - **Polyglot bonus:** +1 for each extra language a word exists in (max +5).
 - The language ledger shows how many words hide in each language.
+- **Auto-solve** types every remaining word letter by letter on the hive, speeding up as it goes. Press Stop or Esc to halt.
 - "Today" picks a daily hive; "New hive" picks a random one out of 500. Progress saves in your browser.
 
 ## Rebuilding the puzzles

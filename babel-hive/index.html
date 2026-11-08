@@ -84,6 +84,12 @@ main.desk { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.05f
 .ctrl.round { min-width: 0; width: 48px; height: 48px; padding: 0; display: grid; place-items: center; }
 .ctrl svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 
+.auto-row { display: flex; gap: 10px; align-items: center; justify-content: center; flex-wrap: wrap; }
+.ctrl.auto { border-color: var(--core); color: var(--core); }
+.ctrl.auto[aria-pressed="true"] { background: var(--core); color: var(--core-ink); }
+.auto-speed { font-family: var(--font-mono); font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; min-width: 9ch; }
+.cell.press { background: var(--cell-hover); }
+.cell.core.press { background: var(--core); filter: brightness(1.25); }
 .toast-zone { min-height: 64px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; text-align: center; }
 .toast { background: var(--ink); color: var(--bg); padding: 7px 14px; border-radius: 8px; font-weight: 700; font-size: 14px; animation: pop .25s ease-out; }
 .toast.bad { background: var(--bad); color: #fff; }
@@ -159,6 +165,10 @@ main.desk { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.05f
         <button class="ctrl round" id="btn-shuffle" type="button" aria-label="Shuffle letters"><svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 0 1 13.7-5.6L20 8.7"/><path d="M20 4v4.7h-4.7"/><path d="M20 12a8 8 0 0 1-13.7 5.6L4 15.3"/><path d="M4 20v-4.7h4.7"/></svg></button>
         <button class="ctrl" id="btn-enter" type="button">Enter</button>
       </div>
+      <div class="auto-row">
+        <button class="ctrl auto" id="btn-auto" type="button" aria-pressed="false">Auto-solve</button>
+        <span class="auto-speed" id="auto-speed"></span>
+      </div>
       <div class="toast-zone" id="toasts"></div>
       <p class="howto">Make words of <b>4+ letters</b> that use the <b>blue center letter</b>. Letters can repeat. A word counts if it's a real word in <b>any</b> of the 16 languages; accents are ignored, so <b>ÜBER</b> is typed UBER. Using all seven letters is a <b>pangram</b> (+7). Words shared by several languages earn a <b>polyglot bonus</b> (+1 per extra language, up to +5).</p>
     </section>
@@ -230,6 +240,7 @@ function wordPoints(e, all) {
 }
 
 function loadPuzzle(idx, isDaily) {
+  if (typeof stopAuto === "function" && autoRun) stopAuto();
   const n = DATA.puzzles.length;
   const pi = ((idx % n) + n) % n;
   const [center, outer, ids] = DATA.puzzles[pi];
@@ -383,6 +394,44 @@ function askReveal() {
   $("rv-no").onclick = () => { $("reveal-box").innerHTML = '<button class="link-btn" id="btn-reveal" type="button">Show all answers</button>'; $("btn-reveal").onclick = askReveal; };
 }
 
+// Auto-solve: types every remaining word letter by letter on the hive, getting faster as it goes.
+let autoRun = 0;
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+function stopAuto() {
+  autoRun = 0;
+  $("btn-auto").setAttribute("aria-pressed", "false");
+  $("btn-auto").textContent = "Auto-solve";
+  $("auto-speed").textContent = "";
+}
+async function startAuto() {
+  if (P.revealed) return toast("Answers are already showing", "bad");
+  const run = autoRun = Date.now();
+  $("btn-auto").setAttribute("aria-pressed", "true");
+  $("btn-auto").textContent = "Stop";
+  const todo = P.answers.map(e => e.w).filter(w => !P.found.includes(w))
+    .sort((a, b) => a.length - b.length || a.localeCompare(b));
+  let delay = 260; // ms per letter; shrinks after every word
+  P.typed = ""; renderEntry();
+  for (const w of todo) {
+    if (autoRun !== run) return;
+    $("auto-speed").textContent = `${(1000 / delay).toFixed(1)} letters/s`;
+    for (const ch of w) {
+      if (autoRun !== run) return;
+      const cell = [...$("hive").children].find(c => c.textContent === ch);
+      if (cell) { cell.classList.add("press"); setTimeout(() => cell.classList.remove("press"), Math.max(40, delay * 0.7)); }
+      addLetter(ch);
+      await sleep(delay);
+    }
+    if (autoRun !== run) return;
+    await sleep(delay * 1.5);
+    submit();
+    await sleep(Math.max(30, delay * 2));
+    delay = Math.max(12, delay * 0.9);
+  }
+  if (autoRun === run) { stopAuto(); toast("Auto-solve finished", "gold", `All ${P.answers.length} words found.`); }
+}
+$("btn-auto").onclick = () => autoRun ? stopAuto() : startAuto();
+
 $("btn-enter").onclick = submit;
 $("btn-del").onclick = () => { P.typed = P.typed.slice(0, -1); renderEntry(); };
 $("btn-shuffle").onclick = shuffle;
@@ -391,6 +440,7 @@ $("btn-random").onclick = () => { let i; do { i = Math.floor(Math.random() * DAT
 
 document.addEventListener("keydown", ev => {
   if (ev.metaKey || ev.ctrlKey || ev.altKey) return;
+  if (autoRun) { if (ev.key === "Escape") stopAuto(); return; }
   if (ev.target.closest && ev.target.closest("button") && (ev.key === "Enter" || ev.key === " ")) return;
   if (ev.key === "Enter") { ev.preventDefault(); submit(); return; }
   if (ev.key === "Backspace") { ev.preventDefault(); P.typed = P.typed.slice(0, -1); renderEntry(); return; }
