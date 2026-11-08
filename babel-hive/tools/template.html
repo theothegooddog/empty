@@ -1,0 +1,407 @@
+<title>Babel Hive</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Atkinson+Hyperlegible:wght@400;700&family=JetBrains+Mono:wght@500;700&display=swap">
+<style>
+/* Layout: two-column play desk — hive and input on the left, scoreboard / words / language ledger on the right; stacks on phones */
+:root {
+  --bg: #eef0f6;
+  --panel: #ffffff;
+  --ink: #1a2140;
+  --muted: #5d6585;
+  --line: #d6dae8;
+  --cell: #dfe3f0;
+  --cell-hover: #d0d6ea;
+  --core: #2f45d1;
+  --core-ink: #ffffff;
+  --gold: #c8890b;
+  --good: #1f8a5b;
+  --bad: #b3364a;
+  --font-display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", system-ui, sans-serif;
+  --font-body: "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #11152a; --panel: #1a1f38; --ink: #e8ebf7; --muted: #9aa2c4; --line: #2c3357;
+    --cell: #262d50; --cell-hover: #313a66; --core: #5b70ff; --core-ink: #0d1024;
+    --gold: #f0b43c; --good: #4cc38d; --bad: #ff7d92; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #11152a; --panel: #1a1f38; --ink: #e8ebf7; --muted: #9aa2c4; --line: #2c3357;
+  --cell: #262d50; --cell-hover: #313a66; --core: #5b70ff; --core-ink: #0d1024;
+  --gold: #f0b43c; --good: #4cc38d; --bad: #ff7d92; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { min-height: 100%; }
+body {
+  background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 15px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 20px 40px;
+}
+button { font: inherit; color: inherit; cursor: pointer; }
+button:focus-visible { outline: 3px solid var(--core); outline-offset: 2px; }
+.wrap { max-width: 1080px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
+
+header.top { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px 24px; border-bottom: 1px solid var(--line); padding-bottom: 14px; }
+.brand h1 { font-family: var(--font-display); font-weight: 800; font-size: clamp(30px, 5vw, 44px); letter-spacing: -0.02em; margin: 0; line-height: 1; }
+.brand h1 span { color: var(--core); }
+.brand p { margin: 6px 0 0; color: var(--muted); font-size: 14px; }
+.puzzle-nav { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.chip-btn { border: 1px solid var(--line); background: var(--panel); border-radius: 999px; padding: 7px 14px; font-size: 13px; font-weight: 700; }
+.chip-btn:hover { border-color: var(--core); }
+.chip-btn.on { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.pnum { font-family: var(--font-mono); font-size: 12px; color: var(--muted); letter-spacing: .04em; }
+
+main.desk { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr); gap: 28px; align-items: start; }
+@media (max-width: 820px) { main.desk { grid-template-columns: minmax(0, 1fr); } }
+
+/* play side */
+.play { display: flex; flex-direction: column; align-items: center; gap: 18px; padding-top: 6px; }
+.entry { min-height: 56px; display: flex; align-items: center; justify-content: center; font-family: var(--font-display); font-weight: 700; font-size: clamp(28px, 6vw, 38px); letter-spacing: .06em; text-transform: uppercase; max-width: 100%; overflow-wrap: anywhere; text-align: center; }
+.entry .c { color: var(--core); }
+.entry .x { color: var(--muted); opacity: .55; }
+.entry .caret { display: inline-block; width: 3px; height: 1em; background: var(--core); margin-left: 3px; animation: blink 1s steps(1) infinite; vertical-align: -0.12em; }
+@keyframes blink { 50% { opacity: 0; } }
+.entry.shake { animation: shake .35s; }
+@keyframes shake { 20%,60% { transform: translateX(-8px); } 40%,80% { transform: translateX(8px); } }
+
+.hive { position: relative; width: min(330px, 86vw); aspect-ratio: 330 / 340; max-width: 100%; }
+.cell { position: absolute; width: 33.3%; aspect-ratio: 1.1547 / 1; border: 0; background: var(--cell); clip-path: polygon(25% 0, 75% 0, 100% 50%, 75% 100%, 25% 100%, 0 50%); font-family: var(--font-display); font-weight: 700; font-size: clamp(24px, 6vw, 32px); text-transform: uppercase; transition: background .12s, transform .12s; display: grid; place-items: center; }
+.cell:hover { background: var(--cell-hover); }
+.cell:active, .cell.press { transform: scale(.92); }
+.cell.core { background: var(--core); color: var(--core-ink); }
+.cell.core:hover { filter: brightness(1.08); }
+.hive.spin .cell:not(.core) { animation: fade .3s; }
+@keyframes fade { 0% { opacity: 1; } 45% { opacity: 0; } 100% { opacity: 1; } }
+
+.controls { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+.ctrl { border: 1px solid var(--line); background: var(--panel); border-radius: 999px; padding: 12px 20px; font-weight: 700; min-width: 92px; }
+.ctrl:hover { border-color: var(--ink); }
+.ctrl.round { min-width: 0; width: 48px; height: 48px; padding: 0; display: grid; place-items: center; }
+.ctrl svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+.toast-zone { min-height: 64px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; text-align: center; }
+.toast { background: var(--ink); color: var(--bg); padding: 7px 14px; border-radius: 8px; font-weight: 700; font-size: 14px; animation: pop .25s ease-out; }
+.toast.bad { background: var(--bad); color: #fff; }
+.toast.gold { background: var(--gold); color: #1a1405; }
+.toast-sub { font-size: 13px; color: var(--muted); max-width: 340px; }
+@keyframes pop { from { transform: translateY(6px) scale(.95); opacity: 0; } to { transform: none; opacity: 1; } }
+
+.howto { font-size: 13px; color: var(--muted); line-height: 1.5; max-width: 380px; text-align: center; }
+.howto b { color: var(--ink); }
+
+/* board side */
+.board { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; min-width: 0; }
+.rank-row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.rank-name { font-family: var(--font-display); font-weight: 800; font-size: 22px; }
+.score { font-family: var(--font-mono); font-weight: 700; font-size: 14px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.track { position: relative; height: 26px; margin: 14px 6px 4px; }
+.track::before { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 2px; background: var(--line); transform: translateY(-50%); }
+.track .fill { position: absolute; left: 0; top: 50%; height: 2px; background: var(--core); transform: translateY(-50%); transition: width .4s; }
+.track .dot { position: absolute; top: 50%; width: 10px; height: 10px; border-radius: 50%; background: var(--line); transform: translate(-50%, -50%); }
+.track .dot.hit { background: var(--core); }
+.track .dot.me { width: 26px; height: 26px; background: var(--core); color: var(--core-ink); font-family: var(--font-mono); font-size: 11px; font-weight: 700; display: grid; place-items: center; z-index: 1; }
+.next { font-size: 13px; color: var(--muted); }
+
+.found-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
+.label { font-size: 12px; text-transform: uppercase; letter-spacing: .09em; font-weight: 700; color: var(--muted); }
+.found { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 2px 18px; max-height: 300px; overflow-y: auto; }
+.found li { padding: 6px 0; border-bottom: 1px solid var(--line); display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.found .w { font-weight: 700; text-transform: capitalize; letter-spacing: .01em; }
+.found .w.pg { color: var(--gold); }
+.found .w.missed { color: var(--muted); font-weight: 400; }
+.tags { display: flex; flex-wrap: wrap; gap: 4px; }
+.tag { font-family: var(--font-mono); font-size: 10.5px; font-weight: 700; padding: 1px 5px; border-radius: 4px; border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
+.tag i { font-family: var(--font-body); font-style: normal; font-weight: 400; color: var(--ink); margin-left: 3px; font-size: 11.5px; }
+.empty { color: var(--muted); font-size: 14px; padding: 6px 0; }
+
+.ledger { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px 20px; }
+.lang { display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; gap: 8px; align-items: center; font-size: 13px; }
+.lang .code { font-family: var(--font-mono); font-weight: 700; font-size: 11px; color: var(--muted); }
+.lang .nm { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.lang .bar { height: 4px; background: var(--line); border-radius: 2px; overflow: hidden; }
+.lang .bar span { display: block; height: 100%; background: var(--core); transition: width .4s; }
+.lang .ct { min-width: 3.6em; text-align: right; font-family: var(--font-mono); font-size: 12px; font-variant-numeric: tabular-nums; color: var(--muted); }
+.lang.done .ct { color: var(--good); font-weight: 700; }
+.ledger-note { font-size: 12.5px; color: var(--muted); margin: 0 0 12px; line-height: 1.45; }
+
+.foot { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; font-size: 12.5px; color: var(--muted); }
+.reveal-box { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.link-btn { border: 0; background: none; text-decoration: underline; color: var(--muted); padding: 4px 2px; font-size: 12.5px; }
+.link-btn.warn { color: var(--bad); font-weight: 700; }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <h1>Babel <span>Hive</span></h1>
+      <p>One honeycomb, sixteen languages. Every word counts, whatever it speaks.</p>
+    </div>
+    <div class="puzzle-nav">
+      <button class="chip-btn" id="btn-daily" type="button">Today</button>
+      <button class="chip-btn" id="btn-random" type="button">New hive</button>
+      <span class="pnum" id="pnum"></span>
+    </div>
+  </header>
+
+  <main class="desk">
+    <section class="play" aria-label="Puzzle">
+      <div class="entry" id="entry" aria-live="polite"></div>
+      <div class="hive" id="hive"></div>
+      <div class="controls">
+        <button class="ctrl" id="btn-del" type="button">Delete</button>
+        <button class="ctrl round" id="btn-shuffle" type="button" aria-label="Shuffle letters"><svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 0 1 13.7-5.6L20 8.7"/><path d="M20 4v4.7h-4.7"/><path d="M20 12a8 8 0 0 1-13.7 5.6L4 15.3"/><path d="M4 20v-4.7h4.7"/></svg></button>
+        <button class="ctrl" id="btn-enter" type="button">Enter</button>
+      </div>
+      <div class="toast-zone" id="toasts"></div>
+      <p class="howto">Make words of <b>4+ letters</b> that use the <b>blue center letter</b>. Letters can repeat. A word counts if it's a real word in <b>any</b> of the 16 languages; accents are ignored, so <b>ÜBER</b> is typed UBER. Using all seven letters is a <b>pangram</b> (+7). Words shared by several languages earn a <b>polyglot bonus</b> (+1 per extra language, up to +5).</p>
+    </section>
+
+    <section class="board" aria-label="Score and words">
+      <div class="panel">
+        <div class="rank-row">
+          <div class="rank-name" id="rank-name">Tourist</div>
+          <div class="score" id="score">0 pts</div>
+        </div>
+        <div class="track" id="track"></div>
+        <div class="next" id="next"></div>
+      </div>
+
+      <div class="panel">
+        <div class="found-head">
+          <span class="label" id="found-label">Found 0 words</span>
+          <span class="label" id="pg-label"></span>
+        </div>
+        <ul class="found" id="found"></ul>
+      </div>
+
+      <div class="panel">
+        <div class="found-head"><span class="label">Language ledger</span></div>
+        <p class="ledger-note">How many words are hiding in each language, and how many you've found. One word can count for several languages.</p>
+        <div class="ledger" id="ledger"></div>
+      </div>
+
+      <div class="foot">
+        <span>Word lists: wordfreq frequency data, checked against Hunspell dictionaries.</span>
+        <span class="reveal-box" id="reveal-box"><button class="link-btn" id="btn-reveal" type="button">Show all answers</button></span>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script>
+const DATA = /*DATA*/null;
+const LANG_NAMES = { en:"English", es:"Español", fr:"Français", de:"Deutsch", it:"Italiano", pt:"Português", nl:"Nederlands", sv:"Svenska", nb:"Norsk", da:"Dansk", pl:"Polski", cs:"Čeština", tr:"Türkçe", ro:"Română", ca:"Català", hu:"Magyar" };
+const RANKS = [
+  [0, "Tourist"], [0.02, "Phrasebook"], [0.05, "Pen Pal"], [0.09, "Exchange Student"],
+  [0.16, "Translator"], [0.26, "Interpreter"], [0.40, "Polyglot"], [0.55, "Babel Master"]
+];
+const CHEERS = ["Bravo!", "Super!", "Brawo!", "Harika!", "Szuper!", "Genial!", "Prima!", "Fantastico!", "Perfekt!", "Skvělé!", "Grozav!", "Molt bé!", "Toll!", "Formidable!", "Lekker!"];
+const SPECIAL = { "ß":"ss", "æ":"ae", "ø":"o", "ł":"l", "đ":"d", "ı":"i", "œ":"oe", "þ":"th", "ð":"d" };
+const EPOCH = Date.UTC(2026, 0, 1);
+
+// decode dictionary: "word|lang:display,lang" -> {w, langs:[[code, display]]}
+const DICT = DATA.dict.map(s => {
+  const [w, rest] = s.split("|");
+  return { w, langs: rest.split(",").map(p => { const [l, d] = p.split(":"); return [l, d || w]; }) };
+});
+
+function norm(s) {
+  s = [...s.toLowerCase()].map(c => SPECIAL[c] || c).join("");
+  return s.normalize("NFKD").replace(/[̀-ͯ]/g, "");
+}
+function store(k, v) { try { if (v === undefined) return JSON.parse(localStorage.getItem(k)); localStorage.setItem(k, JSON.stringify(v)); } catch (e) { return null; } }
+
+const $ = id => document.getElementById(id);
+let P = null; // current puzzle state
+
+function todayIndex() { return Math.floor((Date.now() - EPOCH) / 86400000); }
+function wordPoints(e, all) {
+  let p = e.w.length === 4 ? 1 : e.w.length;
+  if (new Set(e.w).size === 7) p += 7;
+  p += Math.min(5, e.langs.length - 1);
+  return p;
+}
+
+function loadPuzzle(idx, isDaily) {
+  const n = DATA.puzzles.length;
+  const pi = ((idx % n) + n) % n;
+  const [center, outer, ids] = DATA.puzzles[pi];
+  const answers = ids.map(i => DICT[i]);
+  const letters = new Set(center + outer);
+  const max = answers.reduce((s, e) => s + wordPoints(e), 0);
+  const saved = store("babelhive:p" + pi) || [];
+  P = { pi, idx, isDaily, center, outer: [...outer], answers, letters, max,
+        byWord: new Map(answers.map(e => [e.w, e])),
+        found: saved.filter(w => answers.some(e => e.w === w)), typed: "", revealed: false };
+  store("babelhive:last", { idx, isDaily });
+  $("btn-daily").classList.toggle("on", isDaily);
+  $("pnum").textContent = (isDaily ? "Daily · " : "") + "Hive #" + String(pi + 1).padStart(3, "0");
+  $("toasts").innerHTML = "";
+  $("reveal-box").innerHTML = '<button class="link-btn" id="btn-reveal" type="button">Show all answers</button>';
+  $("btn-reveal").onclick = askReveal;
+  drawHive(); render();
+}
+
+function drawHive() {
+  const hive = $("hive");
+  hive.innerHTML = "";
+  // pointy layout via flat-top hexes: center + 6 around
+  const W = 33.3, H = W * (330 / 340) / 1.1547 * 1; // cell height in % of hive height
+  const pos = [[50, 50], [50, 50 - H - 1], [50, 50 + H + 1], [50 - W * .76, 50 - (H + 1) / 2], [50 + W * .76, 50 - (H + 1) / 2], [50 - W * .76, 50 + (H + 1) / 2], [50 + W * .76, 50 + (H + 1) / 2]];
+  const letters = [P.center, ...P.outer];
+  letters.forEach((ch, i) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "cell" + (i === 0 ? " core" : "");
+    b.textContent = ch;
+    b.setAttribute("aria-label", "Letter " + ch.toUpperCase() + (i === 0 ? ", center" : ""));
+    b.style.left = (pos[i][0] - W / 2) + "%";
+    b.style.top = (pos[i][1] - H / 2) + "%";
+    b.onclick = () => addLetter(ch);
+    hive.appendChild(b);
+  });
+}
+
+function addLetter(ch) {
+  if (P.typed.length >= 24) return;
+  P.typed += ch; renderEntry();
+}
+function renderEntry() {
+  const e = $("entry");
+  e.classList.remove("shake");
+  e.innerHTML = [...P.typed].map(c => `<span class="${c === P.center ? "c" : P.letters.has(c) ? "" : "x"}">${c}</span>`).join("") + '<span class="caret"></span>';
+}
+
+function toast(msg, kind, sub) {
+  const z = $("toasts");
+  z.innerHTML = `<div class="toast ${kind || ""}">${msg}</div>` + (sub ? `<div class="toast-sub">${sub}</div>` : "");
+  clearTimeout(toast.t);
+  toast.t = setTimeout(() => { z.innerHTML = ""; }, sub ? 4200 : 1800);
+}
+function reject(msg) {
+  toast(msg, "bad");
+  const e = $("entry");
+  e.classList.remove("shake"); void e.offsetWidth; e.classList.add("shake");
+  setTimeout(() => { P.typed = ""; renderEntry(); }, 450);
+}
+
+function submit() {
+  const w = P.typed;
+  if (!w) return;
+  if (P.revealed) return reject("Answers are showing");
+  if (w.length < 4) return reject("Too short");
+  if ([...w].some(c => !P.letters.has(c))) return reject("Bad letters");
+  if (!w.includes(P.center)) return reject("Missing center letter");
+  if (P.found.includes(w)) return reject("Already found");
+  const e = P.byWord.get(w);
+  if (!e) return reject("Not in any of the 16 word lists");
+  const before = rankIndex();
+  P.found.push(w);
+  store("babelhive:p" + P.pi, P.found);
+  const pts = wordPoints(e);
+  const pang = new Set(w).size === 7;
+  const names = e.langs.map(([l, d]) => LANG_NAMES[l] + (d !== w ? ` (${d})` : "")).join(", ");
+  const cheer = pang ? "Pangram!" : e.langs.length >= 3 ? "Polyglot!" : CHEERS[Math.floor(Math.random() * CHEERS.length)];
+  toast(`${cheer} +${pts}`, pang ? "gold" : "", names);
+  P.typed = ""; renderEntry(); render();
+  const after = rankIndex();
+  if (after > before) setTimeout(() => toast(`New rank: ${RANKS[after][1]}`, "gold"), 1400);
+}
+
+function score() { return P.found.reduce((s, w) => s + wordPoints(P.byWord.get(w)), 0); }
+function rankIndex() {
+  const s = score(); let r = 0;
+  RANKS.forEach(([f], i) => { if (s >= Math.round(f * P.max)) r = i; });
+  return r;
+}
+
+function render() {
+  renderEntry();
+  const s = score(), r = rankIndex();
+  const allFound = P.found.length === P.answers.length;
+  $("rank-name").textContent = allFound ? "Tower of Babel" : RANKS[r][1];
+  $("score").textContent = `${s} / ${P.max} pts`;
+  // track
+  const top = RANKS[RANKS.length - 1][0];
+  const tr = $("track"); tr.innerHTML = "";
+  const fill = document.createElement("div"); fill.className = "fill";
+  fill.style.width = (r / (RANKS.length - 1) * 100) + "%"; tr.appendChild(fill);
+  RANKS.forEach(([f, name], i) => {
+    const d = document.createElement("div");
+    d.className = "dot" + (i <= r ? " hit" : "") + (i === r ? " me" : "");
+    d.style.left = (i / (RANKS.length - 1) * 100) + "%";
+    d.title = `${name}: ${Math.round(f * P.max)} pts`;
+    if (i === r) d.textContent = s;
+    tr.appendChild(d);
+  });
+  if (r < RANKS.length - 1) {
+    const need = Math.round(RANKS[r + 1][0] * P.max) - s;
+    $("next").textContent = `${need} more point${need === 1 ? "" : "s"} to ${RANKS[r + 1][1]}.`;
+  } else {
+    const left = P.answers.length - P.found.length;
+    $("next").textContent = allFound ? "Every word in every language. Unbeatable." : `Top rank reached. ${left} word${left === 1 ? "" : "s"} still hiding for Tower of Babel.`;
+  }
+  // found list
+  const pangrams = P.answers.filter(e => new Set(e.w).size === 7);
+  const pf = pangrams.filter(e => P.found.includes(e.w)).length;
+  $("found-label").textContent = `Found ${P.found.length} of ${P.answers.length} words`;
+  $("pg-label").textContent = `Pangrams ${pf}/${pangrams.length}`;
+  const list = P.revealed ? P.answers.map(e => e.w) : [...P.found].sort();
+  const ul = $("found");
+  ul.innerHTML = list.length ? list.map(w => {
+    const e = P.byWord.get(w);
+    const pg = new Set(w).size === 7;
+    const missed = P.revealed && !P.found.includes(w);
+    const tags = e.langs.map(([l, d]) => `<span class="tag" title="${LANG_NAMES[l]}">${l.toUpperCase()}${d !== w ? `<i>${d}</i>` : ""}</span>`).join("");
+    return `<li><span class="w${pg ? " pg" : ""}${missed ? " missed" : ""}">${w}</span><span class="tags">${tags}</span></li>`;
+  }).join("") : '<li class="empty">No words yet. Try building one from the blue letter outward.</li>';
+  // ledger
+  const tot = {}, got = {};
+  P.answers.forEach(e => e.langs.forEach(([l]) => { tot[l] = (tot[l] || 0) + 1; if (P.found.includes(e.w)) got[l] = (got[l] || 0) + 1; }));
+  $("ledger").innerHTML = DATA.langs.filter(l => tot[l]).sort((a, b) => tot[b] - tot[a]).map(l => {
+    const g = got[l] || 0, t = tot[l];
+    return `<div class="lang${g === t ? " done" : ""}"><span class="code">${l.toUpperCase()}</span><span class="nm">${LANG_NAMES[l]}<span class="bar"><span style="width:${g / t * 100}%"></span></span></span><span class="ct">${g}/${t}</span></div>`;
+  }).join("");
+}
+
+function shuffle() {
+  for (let i = P.outer.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [P.outer[i], P.outer[j]] = [P.outer[j], P.outer[i]]; }
+  const h = $("hive"); h.classList.remove("spin"); void h.offsetWidth; h.classList.add("spin");
+  setTimeout(drawHive, 130);
+}
+
+function askReveal() {
+  $("reveal-box").innerHTML = 'Give up on this hive? <button class="link-btn warn" id="rv-yes" type="button">Yes, show answers</button><button class="link-btn" id="rv-no" type="button">Keep playing</button>';
+  $("rv-yes").onclick = () => { P.revealed = true; $("reveal-box").textContent = "Answers shown. Missed words are greyed out."; render(); };
+  $("rv-no").onclick = () => { $("reveal-box").innerHTML = '<button class="link-btn" id="btn-reveal" type="button">Show all answers</button>'; $("btn-reveal").onclick = askReveal; };
+}
+
+$("btn-enter").onclick = submit;
+$("btn-del").onclick = () => { P.typed = P.typed.slice(0, -1); renderEntry(); };
+$("btn-shuffle").onclick = shuffle;
+$("btn-daily").onclick = () => loadPuzzle(todayIndex(), true);
+$("btn-random").onclick = () => { let i; do { i = Math.floor(Math.random() * DATA.puzzles.length); } while (DATA.puzzles.length > 1 && i === P.pi); loadPuzzle(i, false); };
+
+document.addEventListener("keydown", ev => {
+  if (ev.metaKey || ev.ctrlKey || ev.altKey) return;
+  if (ev.target.closest && ev.target.closest("button") && (ev.key === "Enter" || ev.key === " ")) return;
+  if (ev.key === "Enter") { ev.preventDefault(); submit(); return; }
+  if (ev.key === "Backspace") { ev.preventDefault(); P.typed = P.typed.slice(0, -1); renderEntry(); return; }
+  if (ev.key === " ") { ev.preventDefault(); shuffle(); return; }
+  if (ev.key.length === 1) {
+    const n = norm(ev.key);
+    if (/^[a-z]+$/.test(n)) { [...n].forEach(addLetter); }
+  }
+});
+
+const last = store("babelhive:last");
+if (last && !last.isDaily && Number.isInteger(last.idx)) loadPuzzle(last.idx, false);
+else loadPuzzle(todayIndex(), true);
+</script>
